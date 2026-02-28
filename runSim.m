@@ -7,8 +7,8 @@ function res = runSim(pVessel, pVenc, pSim, pReal, xStartRpl, yStartRpl, noAvera
 
 
     % Define vessel parameters
-    % x0         = pVessel.x0;        % vessel center x [mm]
-    % y0         = pVessel.y0;        % vessel center y [mm]
+    x0         = pSim.voxCenterX;        % vessel center x [mm]
+    y0         = pSim.voxCenterY;        % vessel center y [mm]
     ID         = pVessel.ID;        % vessel inner diameter [mm]
     WT         = pVessel.WT;        % vessel wall thickness [mm]
     PD         = pVessel.PD;        % plug flow center diameter [mm]
@@ -18,45 +18,88 @@ function res = runSim(pVessel, pVenc, pSim, pReal, xStartRpl, yStartRpl, noAvera
     vFlow      = pVessel.vFlow;     % vessel flow [ml/min]
 
 
-    % Define simulation grid
-    if exist('pReal', 'var') && ~isempty(pReal)
-        FOVx = pReal.FOVx; % Field of view in x-direction [mm]
-        FOVy = pReal.FOVy; % Field of view in y-direction [mm]
+    FOVx = pSim.FOVx;
+    FOVy = pSim.FOVy;
+    nVOXx = ceil(FOVx./pSim.voxSizeX);
+    nVOXy = ceil(FOVy./pSim.voxSizeY);
+    [xGrid, yGrid,   ~, pSim.dx, pSim.dy, pSim.nSpin, pSim.spinDensity] = setGrid(FOVx, FOVy, nVOXx, nVOXy, pSim.nSpin);
 
-        % first define data grid
-        [pReal.xGrid, pReal.yGrid, pReal.rGrid, pReal.dx, pReal.dy, pReal.nSpin, pReal.spinDensity] = setGrid(FOVx, FOVy, size(pReal.data));
-        % adjust to vessel center of mass
-        tmpMask = pReal.rGrid<(ID/2);
-        mag_flat = double(abs(pReal.data(tmpMask)));
-        totalMag = sum(mag_flat);
-        if totalMag > 0
-            xCOM = sum(pReal.xGrid(tmpMask) .* mag_flat(:)) / totalMag;
-            yCOM = sum(pReal.yGrid(tmpMask) .* mag_flat(:)) / totalMag;
-        else
-            xCOM = mean(pReal.xGrid(tmpMask));
-            yCOM = mean(pReal.yGrid(tmpMask));
+
+
+    if ischar(x0)
+        switch x0
+            case 'rand64'
+                xSpinRange = (pSim.voxSizeX./pSim.dx-1)/2 .*[-1 1];
+                x0 = randi(xSpinRange,[64 1]).*pSim.dx;
+            otherwise; error('Invalid x0');
         end
-        pReal.xGrid = pReal.xGrid - xCOM;
-        pReal.yGrid = pReal.yGrid - yCOM;
-        pReal.rGrid = sqrt(pReal.xGrid.^2 + pReal.yGrid.^2);
-
-        % define simulation grid
-        [xGrid, yGrid,     ~, pSim.dx, pSim.dy, nSpin, spinDensity] = setGrid(FOVx, FOVy, pSim.nSpin);
-        xGrid = xGrid - xCOM;
-        yGrid = yGrid - yCOM;
-        rGrid = sqrt(xGrid.^2 + yGrid.^2);
-    elseif isfield(pSim, 'FOVx') && isfield(pSim, 'FOVy') && ~isempty(pSim.FOVx) && ~isempty(pSim.FOVy) && pSim.FOVx ~= 0 && pSim.FOVy ~= 0
-        FOVx = pSim.FOVx;
-        FOVy = pSim.FOVy;
-        [xGrid, yGrid, rGrid, pSim.dx, pSim.dy, nSpin, spinDensity] = setGrid(FOVx, FOVy, pSim.nSpin);
-    else
-        FOVx = ID+2*WT; % Field of view in x-direction [mm]
-        FOVy = ID+2*WT; % Field of view in y-direction [mm]
-        [xGrid, yGrid, rGrid, pSim.dx, pSim.dy, nSpin, spinDensity] = setGrid(FOVx, FOVy, pSim.nSpin);
     end
-    % adjust voxel size to an odd number of simulated spins for easy definition of voxel center
-    pSim.voxSizeX = ( 2*floor((pSim.voxSizeX./pSim.dx)/2) + 1 )  .*  pSim.dx;
-    pSim.voxSizeY = ( 2*floor((pSim.voxSizeY./pSim.dy)/2) + 1 )  .*  pSim.dy;
+    if ischar(y0)
+        switch y0
+            case 'rand64'
+                ySpinRange = (pSim.voxSizeY./pSim.dy-1)/2 .*[-1 1];
+                y0 = randi(ySpinRange,[64 1]).*pSim.dy;
+            otherwise; error('Invalid y0');
+        end
+    end
+
+
+
+    for i = 1:length(x0)
+
+        simSpinGrid(xGrid, yGrid, x0(i), y0(i), pVessel);
+
+
+
+
+
+    end
+
+
+
+
+    % % Define simulation grid
+    % if exist('pReal', 'var') && ~isempty(pReal)
+    %     FOVx = pReal.FOVx; % Field of view in x-direction [mm]
+    %     FOVy = pReal.FOVy; % Field of view in y-direction [mm]
+
+    %     % first define data grid
+    %     [pReal.xGrid, pReal.yGrid, pReal.rGrid, pReal.dx, pReal.dy, pReal.nSpin, pReal.spinDensity] = setGrid(FOVx, FOVy, size(pReal.data));
+    %     % adjust to vessel center of mass
+    %     tmpMask = pReal.rGrid<(ID/2);
+    %     mag_flat = double(abs(pReal.data(tmpMask)));
+    %     totalMag = sum(mag_flat);
+    %     if totalMag > 0
+    %         xCOM = sum(pReal.xGrid(tmpMask) .* mag_flat(:)) / totalMag;
+    %         yCOM = sum(pReal.yGrid(tmpMask) .* mag_flat(:)) / totalMag;
+    %     else
+    %         xCOM = mean(pReal.xGrid(tmpMask));
+    %         yCOM = mean(pReal.yGrid(tmpMask));
+    %     end
+    %     pReal.xGrid = pReal.xGrid - xCOM;
+    %     pReal.yGrid = pReal.yGrid - yCOM;
+    %     pReal.rGrid = sqrt(pReal.xGrid.^2 + pReal.yGrid.^2);
+
+    %     % define simulation grid
+    %     [xGrid, yGrid,     ~, pSim.dx, pSim.dy, nSpin, spinDensity] = setGrid(FOVx, FOVy, pSim.nSpin);
+    %     xGrid = xGrid - xCOM;
+    %     yGrid = yGrid - yCOM;
+    %     rGrid = sqrt(xGrid.^2 + yGrid.^2);
+    % elseif isfield(pSim, 'FOVx') && isfield(pSim, 'FOVy') && ~isempty(pSim.FOVx) && ~isempty(pSim.FOVy) && pSim.FOVx ~= 0 && pSim.FOVy ~= 0
+    %     FOVx = pSim.FOVx;
+    %     FOVy = pSim.FOVy;
+    %     [xGrid, yGrid,   ~, pSim.dx, pSim.dy, nSpin, spinDensity] = setGrid(FOVx, FOVy, pSim.nSpin);
+    % else
+    %     FOVx = ID+2*WT; % Field of view in x-direction [mm]
+    %     FOVy = ID+2*WT; % Field of view in y-direction [mm]
+    %     [xGrid, yGrid, rGrid, pSim.dx, pSim.dy, nSpin, spinDensity] = setGrid(FOVx, FOVy, pSim.nSpin);
+    % end
+    % % adjust voxel size to an odd number of simulated spins for easy definition of voxel center
+    % pSim.voxSizeX = ( 2*floor((pSim.voxSizeX./pSim.dx)/2) + 1 )  .*  pSim.dx;
+    % pSim.voxSizeY = ( 2*floor((pSim.voxSizeY./pSim.dy)/2) + 1 )  .*  pSim.dy;
+
+
+
 
     % Define masks
     % on simulation grid

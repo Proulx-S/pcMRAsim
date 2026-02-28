@@ -1,6 +1,8 @@
-function [xGrid, yGrid, rGrid, dx, dy, nSpin, spinDensity] = setGrid(FOVx, FOVy, nSpin)
+function [xGrid, yGrid, rGrid, dx, dy, nSpin, spinDensity] = setGrid(FOVx, FOVy, nVOXx, nVOXy, nSpin)
 % FOVx :  Field of view in x-direction [mm]
 % FOVy :  Field of view in y-direction [mm]
+% nVOXx:  Number of voxels in x-direction
+% nVOXy:  Number of voxels in y-direction
 % dx   :  grid spacing in x-direction [mm]
 % dy   :  grid spacing in y-direction [mm]
 % nSpin:  If length(nSpin)=1 -> desired approximate total number of spins in the grid
@@ -15,8 +17,10 @@ if length(nSpin) == 1
     % Approximate total number of spins desired
     % Calculate grid dimensions to achieve roughly nSpin total spins
     targetDensity = nSpin / (FOVx * FOVy); % spins/mm^2
-    xN = round(FOVx * sqrt(targetDensity)); % number of spins in x-direction
-    yN = round(FOVy * sqrt(targetDensity)); % number of spins in y-direction
+    % xN = round(FOVx * sqrt(targetDensity)); % number of spins in x-direction
+    % yN = round(FOVy * sqrt(targetDensity)); % number of spins in y-direction
+    xN = (round( FOVx*sqrt(targetDensity) /nVOXx/2 -0.5)+0.5 ) * 2*nVOXx; % number of spins in x-direction, adjusted to an odd number of spin rows/columns per voxel
+    yN = (round( FOVy*sqrt(targetDensity) /nVOXy/2 -0.5)+0.5 ) * 2*nVOXy; % number of spins in y-direction, adjusted to an odd number of spin rows/columns per voxel
 elseif length(nSpin) == 2
     % Exact number of rows and columns specified
     yN = nSpin(1); % rows
