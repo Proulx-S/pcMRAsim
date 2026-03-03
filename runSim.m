@@ -17,8 +17,8 @@ if pVenc.dVenc==inf
 else
     M1   = linspace(0, vencToM1(pVenc.dVenc), round(vencToM1(pVenc.dVenc)/vencToM1(pVenc.mVenc))+1);
     venc = M1toVenc(M1);
-    pVencList = venc;
 end
+pVenc.vencList = venc;
 
 
 % Get maps and voxel signals for vessel at (x0,y0)
