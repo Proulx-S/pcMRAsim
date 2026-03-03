@@ -1,4 +1,5 @@
-function res = runSim(pVessel, pVenc, pSim)
+function res = runSim(pVessel, pVenc, pSim, verbose)
+    if ~exist('verbose','var') || isempty(verbose); verbose = true; end
 
 % Define simulation grid
 FOVx = pSim.FOVx;
@@ -22,7 +23,7 @@ pVenc.vencList = venc;
 
 
 % Get maps and voxel signals for vessel at (x0,y0)
-disp('Vessel at (x0,y0). Simulating...');
+if verbose; disp('Vessel at (x0,y0). Simulating...'); end
 [magMap,vMap,mask,pVessel] = simVesselSpins(xGrid, yGrid, pVessel);
 nX = pSim.FOVx./pSim.voxSizeX;
 nY = pSim.FOVy./pSim.voxSizeY;
@@ -42,7 +43,7 @@ res.pVenc   = pVenc;
 res.pSim    = pSim;
 res.mask    = mask;
 res.vMap    = vMap;
-disp('Vessel at (x0,y0). Done.');
+if verbose; disp('Vessel at (x0,y0). Done.'); end
 
 
 
@@ -55,7 +56,7 @@ if pSim.voxRndOffset
     y0 = randi(ySpinRange,[1 pSim.voxRndOffset]).*pSim.dy;
 
     % Get maps and voxel signals at randomized vessel positions
-    disp('Vessel at random positions. Simulating...');
+    if verbose; disp('Vessel at random positions. Simulating...'); end
     If = zeros(nY,nX,length(venc),length(x0));
     Is = zeros(nY,nX,length(venc),length(x0));
     for iPos = 1:length(x0)
@@ -73,5 +74,5 @@ if pSim.voxRndOffset
 
     res.rndOffset.If = If;
     res.rndOffset.Is = Is;
-    disp('Vessel at random positions. Done.');
+    if verbose; disp('Vessel at random positions. Done.'); end
 end

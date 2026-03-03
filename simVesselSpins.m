@@ -45,11 +45,8 @@ magMap = zeros(size(rGrid));
 if length(pVessel.spinMag.lumenLami) == 1
     magMap(mask.lumenLami) = pVessel.spinMag.lumenLami; % laminar flow region of the vessel lumen (single spin magnitudes)
 else
-    dbstack; error('double-checp that');
-    magMap(mask.lumenLami) = vMap(mask.lumenLami)./(2*pVessel.vMean);
-    magMap(mask.lumenLami) = magMap(mask.lumenLami).*(pVessel.spinMag.lumenLami(2)-pVessel.spinMag.lumenLami(1));
-    magMap(mask.lumenLami) = magMap(mask.lumenLami) + pVessel.spinMag.lumenLami(1);
-    magMap(mask.lumenLami) = magMap(mask.lumenLami);
+    %                   vq = interp1(x                             ,v                             ,xq  )
+    magMap(mask.lumenLami) = interp1(pVessel.cmptMag.lumenLami(1,:),pVessel.cmptMag.lumenLami(2,:),vMap(mask.lumenLami),'linear','extrap');
 end
 magMap(mask.lumenPlug) = pVessel.spinMag.lumenPlug; % plug flow center of the vessel lumen (single spin magnitudes)
 magMap(mask.wall)      = pVessel.spinMag.wall; % wall of the vessel (single spin magnitudes)
