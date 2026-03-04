@@ -1,8 +1,9 @@
-function [magMap,vMap,mask,pVessel] = simVesselSpins(xGrid, yGrid, pVessel, x0, y0, anaFlag)
+function [magMap,vMap,mask,pVessel] = simVesselSpins(xGrid, yGrid, pVessel, pSim, x0, y0, anaFlag, vFix)
 if ~exist('x0','var')      || isempty(x0); x0 = pVessel.x0; end
 if ~exist('y0','var')      || isempty(y0); y0 = pVessel.y0; end
 if ~exist('anaFlag','var') || isempty(anaFlag); anaFlag = 'inflowOnSpinVelocity'; end
-    % anaFlag = 'noInflow';
+    % anaFlag = 'inflowFixedAtMax';
+    % anaFlag = 'inflowFixedAtVelocity';
     % anaFlag = 'inflowOnMeanVelocity';
     % anaFlag = 'inflowOnSpinVelocity';
 
@@ -39,39 +40,41 @@ end
 
 
 % % Define spin signal magnitude
-% cmptList = fieldnames(pVessel.cmptMag);
+% cmptList = fieldnames(pVessel.S);
 % for iCmpt = 1:length(cmptList)
-%     pVessel.spinMag.(cmptList{iCmpt}) = pVessel.cmptMag.(cmptList{iCmpt});
+%     pVessel.spinMag.(cmptList{iCmpt}) = pVessel.S.(cmptList{iCmpt});
 % end
 
 % Define signal magnitude map
 magMap = zeros(size(rGrid));
+f      = nan(size(vMap));
 switch anaFlag
-    case 'noInflow'
-        magMap(mask.lumenLami) = pVessel.cmptMag.lumenLami(end);
-    case {'inflowOnMeanVelocity','inflowOnSpinVelocity'}
-        f = nan(size(vMap));
-        switch anaFlag
-            case 'inflowOnMeanVelocity'
-                [f(mask.lumenLami), Mz_v0, fMax, vCrit] = inflowEnhancementBianciardi(pVessel.vMean,pVessel.inflow);
-            case 'inflowOnSpinVelocity'
-                [f(mask.lumenLami), Mz_v0, fMax, vCrit] = inflowEnhancementBianciardi(vMap(mask.lumenLami),pVessel.inflow);
-            otherwise
-                dbstack; error('invalid anaFlag');
-        end
-        magMap(mask.lumenLami)  = f(mask.lumenLami).*Mz_v0;
-        pVessel.inflow.Mz_v0    = Mz_v0;
-        pVessel.inflow.fMax     = fMax;
-        pVessel.inflow.vCrit    = vCrit;
+    case 'inflowFixedAtMax'
+        vel = inf;
+    case 'inflowFixedAtVelocity'
+        vel = vFix;
+    case 'inflowOnMeanVelocity'
+        vel = pVessel.vMean;
+    case 'inflowOnSpinVelocity'
+        vel = vMap(mask.lumen);
     otherwise
         dbstack; error('invalid anaFlag');
 end
+[f(mask.lumen), Mz_v0, fMax, vCrit] = inflowEnhancementBianciardi(vel,pVessel.inflow);
+Mxy_v0 = Mz_v0.*sin(pSim.FA*pi/180).*exp(-pSim.TE./pVessel.T2star.blood);
+magMap(mask.lumen)      = f(mask.lumen).*Mxy_v0;
+pVessel.inflow.Mz_v0    = Mz_v0;
+pVessel.inflow.fMax     = fMax;
+pVessel.inflow.vCrit    = vCrit;
 
 if nnz(mask.lumenPlug)
     dbstack; error('double-check that');
-    magMap(mask.lumenPlug) = pVessel.cmptMag.lumenPlug; % plug flow center of the vessel lumen (single spin magnitudes)
+    magMap(mask.lumenPlug) = pVessel.S.lumenPlug; % plug flow center of the vessel lumen (single spin magnitudes)
 end
-magMap(mask.wall)      = pVessel.cmptMag.wall; % wall of the vessel (single spin magnitudes)
-magMap(mask.surround)  = pVessel.cmptMag.surround; % static surround of the vessel (single spin magnitudes)
+if nnz(mask.wall)
+    dbstack; error('double-check that');
+    magMap(mask.wall) = pVessel.S.wall; % wall of the vessel (single spin magnitudes)
+end
+magMap(mask.surround) = pVessel.S.surround; % static surround of the vessel (single spin magnitudes)
 magMap = magMap./nSpin;
 
