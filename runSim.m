@@ -1,5 +1,9 @@
-function res = runSim(pVessel, pVenc, pSim, verbose)
-    if ~exist('verbose','var') || isempty(verbose); verbose = true; end
+function res = runSim(pVessel, pVenc, pSim, verbose, anaFlag)
+if ~exist('verbose','var') || isempty(verbose); verbose = true; end
+if ~exist('anaFlag','var') || isempty(anaFlag); anaFlag = 'inflowOnSpinVelocity'; end
+    % anaFlag = 'noInflow';
+    % anaFlag = 'inflowOnMeanVelocity';
+    % anaFlag = 'inflowOnSpinVelocity';
 
 % Define simulation grid
 FOVx = pSim.FOVx;
@@ -24,7 +28,7 @@ pVenc.vencList = venc;
 
 % Get maps and voxel signals for vessel at (x0,y0)
 if verbose; disp('Vessel at (x0,y0). Simulating...'); end
-[magMap,vMap,mask,pVessel] = simVesselSpins(xGrid, yGrid, pVessel);
+[magMap,vMap,mask,pVessel] = simVesselSpins(xGrid, yGrid, pVessel,[],[],anaFlag);
 nX = pSim.FOVx./pSim.voxSizeX;
 nY = pSim.FOVy./pSim.voxSizeY;
 If = zeros(nY,nX,length(venc));
@@ -43,6 +47,7 @@ res.pVenc   = pVenc;
 res.pSim    = pSim;
 res.mask    = mask;
 res.vMap    = vMap;
+res.magMap  = magMap;
 if verbose; disp('Vessel at (x0,y0). Done.'); end
 
 
@@ -59,9 +64,11 @@ if pSim.voxRndOffset
     if verbose; disp('Vessel at random positions. Simulating...'); end
     If = zeros(nY,nX,length(venc),length(x0));
     Is = zeros(nY,nX,length(venc),length(x0));
+    res.mask.lumenRnd = zeros(size(xGrid));
     for iPos = 1:length(x0)
         % Define vessel maps
-        [magMap,vMap,mask,pVessel] = simVesselSpins(xGrid, yGrid, pVessel, x0(iPos), y0(iPos));
+        [magMap,vMap,mask,pVessel] = simVesselSpins(xGrid, yGrid, pVessel, x0(iPos), y0(iPos),anaFlag);
+        res.mask.lumenRnd = res.mask.lumenRnd+mask.lumen;
 
         for iVenc = 1:length(venc)
             % Apply velocity encoding to spins

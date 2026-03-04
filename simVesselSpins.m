@@ -1,6 +1,10 @@
-function [magMap,vMap,mask,pVessel] = simVesselSpins(xGrid, yGrid, pVessel, x0, y0)
-if ~exist('x0','var') || isempty(x0); x0 = pVessel.x0; end
-if ~exist('y0','var') || isempty(y0); y0 = pVessel.y0; end
+function [magMap,vMap,mask,pVessel] = simVesselSpins(xGrid, yGrid, pVessel, x0, y0, anaFlag)
+if ~exist('x0','var')      || isempty(x0); x0 = pVessel.x0; end
+if ~exist('y0','var')      || isempty(y0); y0 = pVessel.y0; end
+if ~exist('anaFlag','var') || isempty(anaFlag); anaFlag = 'inflowOnSpinVelocity'; end
+    % anaFlag = 'noInflow';
+    % anaFlag = 'inflowOnMeanVelocity';
+    % anaFlag = 'inflowOnSpinVelocity';
 
 
 % Define vessel radial coordinates
@@ -12,7 +16,7 @@ nSpin = numel(rGrid);
 mask.lumen      = rGrid<=(pVessel.ID/2); % vessel lumen
 mask.wall       = rGrid> (pVessel.ID/2) & rGrid<=(pVessel.ID/2+pVessel.WT); % vessel wall
 mask.surround   = rGrid> (pVessel.ID/2+pVessel.WT); % static surround
-mask.lumenPlug  = rGrid<(pVessel.PD/2) & mask.lumen; % plug flow center
+mask.lumenPlug  = rGrid< (pVessel.PD/2) & mask.lumen; % plug flow center
 mask.lumenLami  = rGrid>=(pVessel.PD/2) & mask.lumen; % laminar flow region
 
 
@@ -34,21 +38,40 @@ else
 end
 
 
-% Define spin signal magnitude
-cmptList = fieldnames(pVessel.cmptMag);
-for iCmpt = 1:length(cmptList)
-    pVessel.spinMag.(cmptList{iCmpt}) = pVessel.cmptMag.(cmptList{iCmpt})./nSpin;
-end
+% % Define spin signal magnitude
+% cmptList = fieldnames(pVessel.cmptMag);
+% for iCmpt = 1:length(cmptList)
+%     pVessel.spinMag.(cmptList{iCmpt}) = pVessel.cmptMag.(cmptList{iCmpt});
+% end
 
 % Define signal magnitude map
 magMap = zeros(size(rGrid));
-if length(pVessel.spinMag.lumenLami) == 1
-    magMap(mask.lumenLami) = pVessel.spinMag.lumenLami; % laminar flow region of the vessel lumen (single spin magnitudes)
-else
-    %                   vq = interp1(x                             ,v                             ,xq  )
-    magMap(mask.lumenLami) = interp1(pVessel.cmptMag.lumenLami(1,:),pVessel.cmptMag.lumenLami(2,:),vMap(mask.lumenLami),'linear','extrap');
+switch anaFlag
+    case 'noInflow'
+        magMap(mask.lumenLami) = pVessel.cmptMag.lumenLami(end);
+    case {'inflowOnMeanVelocity','inflowOnSpinVelocity'}
+        f = nan(size(vMap));
+        switch anaFlag
+            case 'inflowOnMeanVelocity'
+                [f(mask.lumenLami), Mz_v0, fMax, vCrit] = inflowEnhancementBianciardi(pVessel.vMean,pVessel.inflow);
+            case 'inflowOnSpinVelocity'
+                [f(mask.lumenLami), Mz_v0, fMax, vCrit] = inflowEnhancementBianciardi(vMap(mask.lumenLami),pVessel.inflow);
+            otherwise
+                dbstack; error('invalid anaFlag');
+        end
+        magMap(mask.lumenLami)  = f(mask.lumenLami).*Mz_v0;
+        pVessel.inflow.Mz_v0    = Mz_v0;
+        pVessel.inflow.fMax     = fMax;
+        pVessel.inflow.vCrit    = vCrit;
+    otherwise
+        dbstack; error('invalid anaFlag');
 end
-magMap(mask.lumenPlug) = pVessel.spinMag.lumenPlug; % plug flow center of the vessel lumen (single spin magnitudes)
-magMap(mask.wall)      = pVessel.spinMag.wall; % wall of the vessel (single spin magnitudes)
-magMap(mask.surround)  = pVessel.spinMag.surround; % static surround of the vessel (single spin magnitudes)
+
+if nnz(mask.lumenPlug)
+    dbstack; error('double-check that');
+    magMap(mask.lumenPlug) = pVessel.cmptMag.lumenPlug; % plug flow center of the vessel lumen (single spin magnitudes)
+end
+magMap(mask.wall)      = pVessel.cmptMag.wall; % wall of the vessel (single spin magnitudes)
+magMap(mask.surround)  = pVessel.cmptMag.surround; % static surround of the vessel (single spin magnitudes)
+magMap = magMap./nSpin;
 
