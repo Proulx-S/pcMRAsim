@@ -39,8 +39,8 @@ for iVenc = 1:length(venc)
     % Apply velocity encoding to spins
     spinMap  = magMap.*exp(1i*vel2phase(vMap, venc(iVenc)));
     % Get voxel signal for each compartment
-    [If(:,:,iVenc),voxIdx] = getVoxelSignal(spinMap,pSim  ,mask.lumen   );
-    [Is(:,:,iVenc),     ~] = getVoxelSignal(spinMap,voxIdx,mask.surround);
+    [If(:,:,iVenc),pSim.voxIdx] = getVoxelSignal(spinMap,pSim       ,mask.lumen   );
+    [Is(:,:,iVenc),          ~] = getVoxelSignal(spinMap,pSim.voxIdx,mask.surround);
 end
 res.If = If;
 res.Is = Is;
@@ -76,8 +76,8 @@ if pSim.voxRndOffset
             % Apply velocity encoding to spins
             spinMap  = magMap.*exp(1i*vel2phase(vMap, venc(iVenc)));
             % Get voxel signal for each compartment
-            [If(:,:,iVenc,iPos),voxIdx] = getVoxelSignal(spinMap,pSim  ,mask.lumen   );
-            [Is(:,:,iVenc,iPos),     ~] = getVoxelSignal(spinMap,voxIdx,mask.surround);
+            [If(:,:,iVenc,iPos),~] = getVoxelSignal(spinMap,pSim.voxIdx,mask.lumen   );
+            [Is(:,:,iVenc,iPos),~] = getVoxelSignal(spinMap,pSim.voxIdx,mask.surround);
         end
     end
 
