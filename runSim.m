@@ -18,14 +18,18 @@ nVOXy = ceil(FOVy./pSim.voxSizeY);
 % Define velocity encoding
 pVenc.mVenc; % velocity encoding bandwidth [cm/s]
 pVenc.dVenc; % velocity encoding resolution [cm/s]
-if pVenc.dVenc==inf
-    venc = pVenc.mVenc;
-    M1   = vencToM1(venc);
+if isfield(pVenc,'vencList') && ~isempty(pVenc.vencList)
+    venc = pVenc.vencList;
 else
-    M1   = linspace(0, vencToM1(pVenc.dVenc), round(vencToM1(pVenc.dVenc)/vencToM1(pVenc.mVenc))+1);
-    venc = M1toVenc(M1);
+    if pVenc.dVenc==inf
+        venc = pVenc.mVenc;
+    else
+        M1   = linspace(0, vencToM1(pVenc.dVenc), round(vencToM1(pVenc.dVenc)/vencToM1(pVenc.mVenc))+1);
+        venc = M1toVenc(M1);
+    end
+    pVenc.vencList = venc;
 end
-pVenc.vencList = venc;
+
 
 
 % Get maps and voxel signals for vessel at (x0,y0)
@@ -57,10 +61,16 @@ if verbose; disp('Vessel at (x0,y0). Done.'); end
 
 if pSim.voxRndOffset
     % Randomize vessel position relative to center voxel of FOV
-    xSpinRange = (pSim.voxSizeX./pSim.dx-1)/2 .*[-1 1];
-    ySpinRange = (pSim.voxSizeY./pSim.dy-1)/2 .*[-1 1];
-    x0 = randi(xSpinRange,[1 pSim.voxRndOffset]).*pSim.dx;
-    y0 = randi(ySpinRange,[1 pSim.voxRndOffset]).*pSim.dy;
+
+    if isfield(pSim,'voxRndOffsetX') && isfield(pSim,'voxRndOffsetY') && (~isempty(pSim.voxRndOffsetX) || ~isempty(pSim.voxRndOffsetY))
+        x0 = pSim.voxRndOffsetX;
+        y0 = pSim.voxRndOffsetY;
+    else
+        xSpinRange = (pSim.voxSizeX./pSim.dx-1)/2 .*[-1 1];
+        ySpinRange = (pSim.voxSizeY./pSim.dy-1)/2 .*[-1 1];
+        x0 = randi(xSpinRange,[1 pSim.voxRndOffset]).*pSim.dx;
+        y0 = randi(ySpinRange,[1 pSim.voxRndOffset]).*pSim.dy;
+    end
 
     % Get maps and voxel signals at randomized vessel positions
     if verbose; disp('Vessel at random positions. Simulating...'); end
@@ -81,6 +91,8 @@ if pSim.voxRndOffset
         end
     end
 
+    res.pSim.voxRndOffsetX = x0;
+    res.pSim.voxRndOffsetY = y0;
     res.rndOffset.If = If;
     res.rndOffset.Is = Is;
     if verbose; disp('Vessel at random positions. Done.'); end
