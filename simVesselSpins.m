@@ -7,6 +7,11 @@ if ~exist('anaFlag','var') || isempty(anaFlag); anaFlag = 'inflowOnSpinVelocity'
     % anaFlag = 'inflowOnMeanVelocity';
     % anaFlag = 'inflowOnSpinVelocity';
 
+% NOTE: The 0 to 1 MR signal is defined on the full ROI
+%       Single-spin signal is the full ROI signal divided by the number of spins in the ROI
+%       This part of the code is not aware of voxels.
+%       This signal definition needs to be taken into account when later summing signal in a voxel (ROI subset). 
+
 
 % Define vessel radial coordinates
 rGrid = sqrt((xGrid-x0).^2 + (yGrid-y0).^2);
@@ -76,5 +81,5 @@ if nnz(mask.wall)
     magMap(mask.wall) = pVessel.S.wall; % wall of the vessel (single spin magnitudes)
 end
 magMap(mask.surround) = pVessel.S.surround; % static surround of the vessel (single spin magnitudes)
-magMap = magMap./nSpin;
+magMap = magMap./nSpin; % MR signal between 0 and 1 for the full ROI (not voxel). Dividing by the number of spins in the ROI for the signal of individual spins.
 
