@@ -33,10 +33,11 @@ end
 if ~exist('pMri','var') || isempty(pMri)
     % imaging
     pMri.sliceThickness     = 1;      % [mm]
-    pMri.TR                 = 0.05;   % [s]   alpha TR
+    pMri.TR                 = 0.05;   % [s]   RF repetition time (alpha TR)
+    pMri.TE                 = 0.008;  % [s]   echo time
     pMri.FA                 = 40;     % [deg]
     % velocity encoding
-    pMri.venc.method        = 'FVE';  % 'FVE' | 'PC'
+    pMri.venc.method        = 'PCmono'; % 'FVE' | 'PCmono' | 'PCbipo'
     switch pMri.venc.method
         case 'FVE'    % Fourier velocity encoding
             pMri.venc.vencRes       = 2;                % [cm/s]    velocity spectrum resolution (minimum velocity)
@@ -82,28 +83,22 @@ if nargin == 0
 end
 
 % Define simulation grid
-FOVx = pSim.FOVx;
-FOVy = pSim.FOVy;
-nVOXx = ceil(FOVx./pSim.voxSizeX);
-nVOXy = ceil(FOVy./pSim.voxSizeY);
-[xGrid, yGrid,   ~, pSim.dx, pSim.dy, pSim.nSpin, pSim.spinDensity] = setGrid(FOVx, FOVy, nVOXx, nVOXy, pSim.nSpin);
-
+[pSim.gridFE, pSim.gridPE, pSim.gridVoxIdx, pSim.dFE, pSim.dPE, pSim.nSpin] = setGrid(pSim.voxFE, pSim.voxPE, pSim.matFE, pSim.matPE, pSim.nSpin);
 
 % Define velocity encoding
-pVenc.mVenc; % velocity encoding bandwidth [cm/s]
-pVenc.dVenc; % velocity encoding resolution [cm/s]
-if isfield(pVenc,'vencList') && ~isempty(pVenc.vencList)
-    venc = pVenc.vencList;
-else
-    if pVenc.dVenc==inf
-        venc = pVenc.mVenc;
-    else
-        M1   = linspace(0, vencToM1(pVenc.dVenc), round(vencToM1(pVenc.dVenc)/vencToM1(pVenc.mVenc))+1);
-        venc = M1toVenc(M1);
-    end
-    pVenc.vencList = venc;
+switch pMri.venc.method
+    case 'FVE'
+        m1List = linspace(0, vencToM1(pMri.venc.vencRes), round(vencToM1(pMri.venc.vencRes)/vencToM1(pMri.venc.vencMax))+1);
+        pMri.venc.m1List  = m1List;
+        pMri.venc.vencList = M1toVenc(m1List);
+    case 'PCmono'
+    case 'PCbipo'
+    otherwise
+        error('Invalid velocity encoding method: %s', pMri.venc.method);
 end
 
+% Define vessel cross-section
+[magMap,vMap,mask,pVessel] = simVesselSpins(pVessel, pSim, pMri);
 
 
 % Get maps and voxel signals for vessel at (x0,y0)

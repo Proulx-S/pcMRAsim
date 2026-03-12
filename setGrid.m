@@ -1,48 +1,42 @@
-function [xGrid, yGrid, rGrid, dx, dy, nSpin, spinDensity] = setGrid(FOVx, FOVy, nVOXx, nVOXy, nSpin)
-% FOVx :  Field of view in x-direction [mm]
-% FOVy :  Field of view in y-direction [mm]
-% nVOXx:  Number of voxels in x-direction
-% nVOXy:  Number of voxels in y-direction
-% dx   :  grid spacing in x-direction [mm]
-% dy   :  grid spacing in y-direction [mm]
-% nSpin:  If length(nSpin)=1 -> desired approximate total number of spins in the grid
-% nSpin:  If length(nSpin)=2 -> desired number of rows x columns of the spin grid
-% nSpin:  as an output, it is of the length(nSpin)=1 format
-% xGrid:  x-coordinates of the grid [mm]
-% yGrid:  y-coordinates of the grid [mm]
-% spinDensity:  Number of spins per mm^2
+function [gridFE, gridPE, gridVoxIdx, dFE, dPE, nSpin] = setGrid(voxSzFE, voxSzPE, matSzFE, matSzPE, nSpin)
+% INPUTS
+%  voxSzFE:  voxel size in FE direction [mm]
+%  voxSzPE:  voxel size in PE direction [mm]
+%  matSzFE:  matrix size in FE direction [voxels]
+%  matSzPE:  matrix size in PE direction [voxels]
+%  nSpin  :  desired approximate number of spins per voxel [n]
+% OUTPUTS
+%  gridFE    :  FE grid coordinates [mm]
+%  gridPE    :  PE grid coordinates [mm]
+%  gridVoxIdx:  voxel indices of spins with idx=0 for center voxel
+%  dFE       :  spin spacing in FE direction [mm]
+%  dPE       :  spin spacing in PE direction [mm]
+%  nSpin     :  actual number of spins in a voxel [n]
 
-% Handle input nSpin: can be scalar (total spins) or vector (rows, cols)
-if length(nSpin) == 1
-    % Approximate total number of spins desired
-    % Calculate grid dimensions to achieve roughly nSpin total spins
-    targetDensity = nSpin / (FOVx * FOVy); % spins/mm^2
-    % xN = round(FOVx * sqrt(targetDensity)); % number of spins in x-direction
-    % yN = round(FOVy * sqrt(targetDensity)); % number of spins in y-direction
-    xN = (round( FOVx*sqrt(targetDensity) /nVOXx/2 -0.5)+0.5 ) * 2*nVOXx; % number of spins in x-direction, adjusted to an odd number of spin rows/columns per voxel
-    yN = (round( FOVy*sqrt(targetDensity) /nVOXy/2 -0.5)+0.5 ) * 2*nVOXy; % number of spins in y-direction, adjusted to an odd number of spin rows/columns per voxel
-elseif length(nSpin) == 2
-    % Exact number of rows and columns specified
-    yN = nSpin(1); % rows
-    xN = nSpin(2); % columns
-else
-    error('nSpin must be a scalar or a 2-element vector');
-end
 
-% Create grid coordinates
-x = linspace(-FOVx/2 + FOVx/(2*xN), FOVx/2 - FOVx/(2*xN), xN);
-y = linspace(-FOVy/2 + FOVy/(2*yN), FOVy/2 - FOVy/(2*yN), yN);
-[xGrid, yGrid] = meshgrid(x, y);
+% odd number of spins in each directions in a voxel
+nSpinFE = round(sqrt(nSpin*voxSzFE/voxSzPE));
+nSpinPE = round(sqrt(nSpin*voxSzPE/voxSzFE));
+nSpinFE = nSpinFE + mod(nSpinFE+1,2);
+nSpinPE = nSpinPE + mod(nSpinPE+1,2);
+% spin spacing in each directions
+dFE     = voxSzFE/nSpinFE;
+dPE     = voxSzPE/nSpinPE;
+% number of spins in a voxel
+nSpin   = nSpinFE * nSpinPE;
 
-% Calculate actual spacing
-dx = mean(diff(xGrid(1,:)));
-dy = mean(diff(yGrid(:,1)));
+% spin cartesian coordinates relative to center of center voxel
+gridFE = linspace(-voxSzFE*matSzFE/2+dFE/2, voxSzFE*matSzFE/2-dFE/2, nSpinFE);
+gridPE = linspace(-voxSzPE*matSzPE/2+dPE/2, voxSzPE*matSzPE/2-dPE/2, nSpinPE);
+[gridFE, gridPE] = meshgrid(gridFE, gridPE);
 
-% Calculate actual spin density
-spinDensity = 1 / (dx * dy); % spins/mm^2
-
-% Return total number of spins
-nSpin = xN * yN;
-
-% Calculate radial distance from the center of the grid [mm]
-rGrid = sqrt(xGrid.^2 + yGrid.^2); % radial distance from the center of the grid [mm]
+% voxel indices of spins: matrix same size as gridR, one index per voxel
+iFE = round(gridFE/voxSzFE + (matSzFE+1)/2);
+iPE = round(gridPE/voxSzPE + (matSzPE+1)/2);
+iFE = max(1, min(matSzFE, iFE));
+iPE = max(1, min(matSzPE, iPE));
+gridVoxIdx = sub2ind([matSzFE, matSzPE], iFE, iPE);
+% make center voxel index 0
+idx0 = gridVoxIdx(round(end/2),round(end/2));
+gridVoxIdx(gridVoxIdx==idx0) = 0;
+gridVoxIdx(gridVoxIdx> idx0) = gridVoxIdx(gridVoxIdx> idx0)-1;
