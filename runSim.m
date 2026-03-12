@@ -1,11 +1,50 @@
-function res = runSim(pVessel, pVenc, pSim, verbose, anaFlag, vFix)
+function res = runSim(pVessel, pVenc, pSim, verbose)
 if ~exist('verbose','var') || isempty(verbose); verbose = true; end
-if ~exist('anaFlag','var')  || isempty(anaFlag); anaFlag = 'inflowOnSpinVelocity'; end
-if ~exist('vFix','var')     || isempty(vFix);     vFix = []; end
-    % anaFlag = 'inflowFixedAtMax';
-    % anaFlag = 'inflowFixedAtVelocity';
-    % anaFlag = 'inflowOnMeanVelocity';
-    % anaFlag = 'inflowOnSpinVelocity';
+
+if nargin==0
+    %% Output default parameters
+
+    pMri.sliceThickness     = 1;      % [mm]   | default 1 mm
+    pMri.TR                 = 0.05;   % [s]    | default 0.05 s
+    pMri.FA                 = 40;     % [deg]  | default 40 deg
+    pMri.venc.vencRes       = 2;      % [cm/s] | default 2 cm/s
+    pMri.venc.vencMax       = 50;     % [cm/s] | default 50 cm/s
+    pMri.venc.vencList      = M1toVenc( linspace(0, vencToM1(pMri.venc.vencRes), round(vencToM1(pMri.venc.vencRes)/vencToM1(pMri.venc.vencMax))+1) );
+    % pMri.venc.vencList      = [inf 8]; % [cm/s] | default [inf 8] or a list built from vencRes and vencMax
+    % pMri.venc.vencRes       = [];
+    % pMri.venc.vencMax       = [];
+    pMri.relax.blood.T1     = 2.58;   % [s]    | default human in vivo at 7T
+    % Blood T1. Human at 7T (Rane & Gore, Magn Reson Imaging 31(3):477–479, 2013, doi:10.1016/j.mri.2012.08.008):
+    %   arterial 2.29±0.10 s, venous 2.07±0.12 s in vitro (37°C); venous sagittal sinus in vivo 2.45±0.11 s.
+    %   arterial in vivo 2.45/2.07*2.29 = 2.71 s
+    %   mid arterio-venous in vivo (2.71+2.45)/2 = 2.58 s
+    pMri.relax.blood.T2star = 0.01;   % [s]    | default human in vivo at 7T
+    % Blood T2*. Human at 7T: venous blood ~7.4 ms (SWI/venography at 7T); arterial longer (higher oxygenation).
+    %   Blood T2* is strongly oxygenation-dependent; R2* increases with deoxyhemoglobin (e.g. Qin & van Zijl, MRM 24868, 2009).
+    pMri.relax.GM.T1        = 1.939;  % [s]    | default human in vivo at 7T
+    % Gray matter cortical T1. Human at 7T (Waddell et al., MAGMA 21:121–130, 2008, doi:10.1007/s10334-008-0104-8):
+    %   cortical gray matter 1939±149 ms (~1.94 s), white matter 1126±97 ms (MPRAGE, 4 subjects).
+    pMri.relax.GM.T2star    = 0.0329; % [s]    | default human in vivo at 7T
+    % Gray matter cortical T2*. Human at 7T (Peters et al., Magn Reson Imaging 25:748–753, 2007, doi:10.1016/j.mri.2007.02.014):
+    %   cortical gray matter 32.9±2.3 ms, white matter 27.7±4.3 ms at 7T (six subjects).
+
+    pVessel.x0          = 0;   % [mm] vessel center x           | default 0
+    pVessel.y0          = 0;   % [mm] vessel center y           | default 0
+    pVessel.ID          = 1;   % [mm] vessel inner diameter     | default 1
+    pVessel.PD          = 0;   % [mm] plug flow center diameter | default 0
+    pVessel.WT          = 0;   % [mm] vessel wall thickness     | default 0
+    pVessel.profile     = 'parabolic1';   %                                | default 'parabolic1'
+    pVessel.vMax        = 20;   % [cm/s] maximum cross-sectional velocity | default 20
+    pVessel.vMean       = 10;   % [cm/s] cross-sectional mean velocity    | default 10
+    pVessel.vFlow       = [];   % [ml/min] vessel flow | default ?
+    pVessel.S.lumenLami = [0.05 0.3];  % [{0,1}au] 1 values->no inflow enhancement, 2 values->linear inflow enhancement from first to second value | default blood at 7T (requires acquistion parameters)
+    pVessel.S.lumenPlug = pVessel.S.lumenLami;  % same as lumenLami
+    pVessel.S.wall      = 0;  %           | default 0
+    pVessel.S.surround  = 0.07;  % [{0,1}au] | default blood at 7T (requires acquistion parameters)
+end
+
+
+    pSim
 
 % Define simulation grid
 FOVx = pSim.FOVx;
