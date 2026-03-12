@@ -1,18 +1,63 @@
-function res = runSim(pVessel, pVenc, pSim, verbose)
+function res = runSim(pVessel, pSim, pMri, verbose)
 if ~exist('verbose','var') || isempty(verbose); verbose = true; end
 
-if nargin==0
-    %% Output default parameters
-
-    pMri.sliceThickness     = 1;      % [mm]   | default 1 mm
-    pMri.TR                 = 0.05;   % [s]    | default 0.05 s
-    pMri.FA                 = 40;     % [deg]  | default 40 deg
-    pMri.venc.vencRes       = 2;      % [cm/s] | default 2 cm/s
-    pMri.venc.vencMax       = 50;     % [cm/s] | default 50 cm/s
-    pMri.venc.vencList      = M1toVenc( linspace(0, vencToM1(pMri.venc.vencRes), round(vencToM1(pMri.venc.vencRes)/vencToM1(pMri.venc.vencMax))+1) );
-    % pMri.venc.vencList      = [inf 8]; % [cm/s] | default [inf 8] or a list built from vencRes and vencMax
-    % pMri.venc.vencRes       = [];
-    % pMri.venc.vencMax       = [];
+%% Default parameters
+% Vessel simulation parameters
+if ~exist('pVessel','var') || isempty(pVessel)
+    % vessel geometry and flow
+    pVessel.posFE       = 0;   % [mm]     vessel center in FE direction
+    pVessel.posPE       = 0;   % [mm]     vessel center in PE direction
+    pVessel.ID          = 1;   % [mm]     vessel inner diameter
+    pVessel.PD          = 0;   % [mm]     plug flow center diameter
+    pVessel.WT          = 0;   % [mm]     vessel wall thickness
+    pVessel.profile     = 'parabolic1'; % flow profile
+    pVessel.vMax        = 20;  % [cm/s]   maximum cross-sectional (through-slice) velocity
+    pVessel.vMean       = 10;  % [cm/s]   mean    cross-sectional (through-slice) velocity
+    pVessel.vFlow       = [];  % [ml/min] blood flow
+    % mr signal intensities -- leave empty for a determination based on relaxation and acquisition parameters
+    pVessel.S.lumen     = [];  % [MR signal {0,1}] from the vessel lumen    compartment if it filled the whole voxel | determined from pMri if unspecified
+    pVessel.S.wall      = 0;   % [MR signal {0,1}] from the vessel wall     compartment if it filled the whole voxel | determined from pMri if unspecified
+    pVessel.S.surround  = [];  % [MR signal {0,1}] from the static surround compartment if it filled the whole voxel | determined from pMri if unspecified
+end
+% Spin simulation parameters
+if ~exist('pSim','var') || isempty(pSim)
+    pSim.voxFE        = 1;          % [mm]     voxel  size in FE direction
+    pSim.voxPE        = pSim.voxFE; % [mm]     voxel  size in PE direction
+    pSim.matFE        = 3;          % [voxels] matrix size in FE direction (must be odd)
+    pSim.matPE        = pSim.matFE; % [voxels] matrix size in PE direction (must be odd)
+    pSim.nSpin        = (2^8)^2;    % [n] spins per voxel
+    % randomization of vessel position relative to center voxel
+    pSim.fovBoot      = 0;          % [n] number of bootstrap object-to-grid random shifts
+end
+% MR parameters
+if ~exist('pMri','var') || isempty(pMri)
+    % imaging
+    pMri.sliceThickness     = 1;      % [mm]
+    pMri.TR                 = 0.05;   % [s]   alpha TR
+    pMri.FA                 = 40;     % [deg]
+    % velocity encoding
+    pMri.venc.method        = 'FVE';  % 'FVE' | 'PC'
+    switch pMri.venc.method
+        case 'FVE'    % Fourier velocity encoding
+            pMri.venc.vencRes       = 2;                % [cm/s]    velocity spectrum resolution (minimum velocity)
+            pMri.venc.vencMax       = 50;               % [cm/s]    velocity spectrum span       (maximum velocity)
+            m1List = linspace(0, vencToM1(pMri.venc.vencRes), round(vencToM1(pMri.venc.vencRes)/vencToM1(pMri.venc.vencMax))+1);
+            pMri.venc.m1List        = m1List;           % [T*s^2/m] list of velocity encoding gradient first moments
+            pMri.venc.vencList      = M1toVenc(m1List); % [cm/s]    list of velocity encoding values
+        case 'PCmono' % monopolar phase-Contrast velocity encoding
+            pMri.venc.vencList      = [inf 8];          % [cm/s] list of velocity encoding values
+            pMri.venc.m1List        = vencToM1(pMri.venc.vencList); % [T*s^2/m] list of velocity encoding gradient first moments
+            pMri.venc.vencRes       = [];               % not used
+            pMri.venc.vencMax       = [];               % not used
+        case 'PCbipo' % bipolar phase-Contrast velocity encoding
+            pMri.venc.vencList      = [-8 8];           % [cm/s] list of velocity encoding values
+            pMri.venc.m1List        = vencToM1(pMri.venc.vencList); % [T*s^2/m] list of velocity encoding gradient first moments
+            pMri.venc.vencRes       = [];               % not used
+            pMri.venc.vencMax       = [];               % not used
+        otherwise
+            error('Invalid velocity encoding method: %s', pMri.venc.method);
+    end
+    % relaxation
     pMri.relax.blood.T1     = 2.58;   % [s]    | default human in vivo at 7T
     % Blood T1. Human at 7T (Rane & Gore, Magn Reson Imaging 31(3):477–479, 2013, doi:10.1016/j.mri.2012.08.008):
     %   arterial 2.29±0.10 s, venous 2.07±0.12 s in vitro (37°C); venous sagittal sinus in vivo 2.45±0.11 s.
@@ -27,24 +72,14 @@ if nargin==0
     pMri.relax.GM.T2star    = 0.0329; % [s]    | default human in vivo at 7T
     % Gray matter cortical T2*. Human at 7T (Peters et al., Magn Reson Imaging 25:748–753, 2007, doi:10.1016/j.mri.2007.02.014):
     %   cortical gray matter 32.9±2.3 ms, white matter 27.7±4.3 ms at 7T (six subjects).
-
-    pVessel.x0          = 0;   % [mm] vessel center x           | default 0
-    pVessel.y0          = 0;   % [mm] vessel center y           | default 0
-    pVessel.ID          = 1;   % [mm] vessel inner diameter     | default 1
-    pVessel.PD          = 0;   % [mm] plug flow center diameter | default 0
-    pVessel.WT          = 0;   % [mm] vessel wall thickness     | default 0
-    pVessel.profile     = 'parabolic1';   %                                | default 'parabolic1'
-    pVessel.vMax        = 20;   % [cm/s] maximum cross-sectional velocity | default 20
-    pVessel.vMean       = 10;   % [cm/s] cross-sectional mean velocity    | default 10
-    pVessel.vFlow       = [];   % [ml/min] vessel flow | default ?
-    pVessel.S.lumenLami = [0.05 0.3];  % [{0,1}au] 1 values->no inflow enhancement, 2 values->linear inflow enhancement from first to second value | default blood at 7T (requires acquistion parameters)
-    pVessel.S.lumenPlug = pVessel.S.lumenLami;  % same as lumenLami
-    pVessel.S.wall      = 0;  %           | default 0
-    pVessel.S.surround  = 0.07;  % [{0,1}au] | default blood at 7T (requires acquistion parameters)
 end
 
-
-    pSim
+if nargin == 0
+    res.pVessel = pVessel;
+    res.pSim    = pSim;
+    res.pMri    = pMri;
+    return;
+end
 
 % Define simulation grid
 FOVx = pSim.FOVx;
