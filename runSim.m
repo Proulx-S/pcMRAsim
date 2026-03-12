@@ -5,8 +5,6 @@ if ~exist('verbose','var') || isempty(verbose); verbose = true; end
 % Vessel simulation parameters
 if ~exist('pVessel','var') || isempty(pVessel)
     % vessel geometry and flow
-    pVessel.posFE       = 0;   % [mm]     vessel center in FE direction
-    pVessel.posPE       = 0;   % [mm]     vessel center in PE direction
     pVessel.ID          = 1;   % [mm]     vessel inner diameter
     pVessel.PD          = 0;   % [mm]     plug flow center diameter
     pVessel.WT          = 0;   % [mm]     vessel wall thickness
@@ -21,13 +19,13 @@ if ~exist('pVessel','var') || isempty(pVessel)
 end
 % Spin simulation parameters
 if ~exist('pSim','var') || isempty(pSim)
-    pSim.voxFE        = 1;          % [mm]     voxel  size in FE direction
-    pSim.voxPE        = pSim.voxFE; % [mm]     voxel  size in PE direction
-    pSim.matFE        = 3;          % [voxels] matrix size in FE direction (must be odd)
-    pSim.matPE        = pSim.matFE; % [voxels] matrix size in PE direction (must be odd)
-    pSim.nSpin        = (2^8)^2;    % [n] spins per voxel
+    pSim.voxFE       = 1;          % [mm]     voxel  size in FE direction
+    pSim.voxPE       = pSim.voxFE; % [mm]     voxel  size in PE direction
+    pSim.matFE       = 3;          % [voxels] matrix size in FE direction (must be odd)
+    pSim.matPE       = pSim.matFE; % [voxels] matrix size in PE direction (must be odd)
+    pSim.nSpin       = (2^8)^2;    % [n] spins per voxel
     % randomization of vessel position relative to center voxel
-    pSim.fovBoot      = 0;          % [n] number of bootstrap object-to-grid random shifts
+    pSim.monteCarloN = 0;          % [n] number of bootstrap object-to-grid random shifts
 end
 % MR parameters
 if ~exist('pMri','var') || isempty(pMri)
@@ -97,38 +95,17 @@ switch pMri.venc.method
         error('Invalid velocity encoding method: %s', pMri.venc.method);
 end
 
-% Define vessel cross-section
-[magMap,vMap,mask,pVessel] = simVesselSpins(pVessel, pSim, pMri);
+% Simulate with vessel centered on center voxel
+[res.magMap,res.vMap,res.pVessel,res.pSim,res.pMri] = simVesselSpins(pVessel, pSim, pMri);
+res.spinMap = res.magMap.*exp(1i*vel2phase(res.vMap, res.pMri.venc.vencList(2)));
+res.I  = sum(res.spinMap(res.pSim.gridVoxIdx==0                            )); % total signal
+res.If = sum(res.spinMap(res.pSim.gridVoxIdx==0 & res.pVessel.mask.lumen   )); % lumen signal
+res.Is = sum(res.spinMap(res.pSim.gridVoxIdx==0 & res.pVessel.mask.surround)); % surround signal
 
-
-% Get maps and voxel signals for vessel at (x0,y0)
-if verbose; disp('Vessel at (x0,y0). Simulating...'); end
-[magMap,vMap,mask,pVessel] = simVesselSpins(xGrid, yGrid, pVessel, pSim, [], [], anaFlag, vFix);
-nX = pSim.FOVx./pSim.voxSizeX;
-nY = pSim.FOVy./pSim.voxSizeY;
-If = zeros(nY,nX,length(venc));
-Is = zeros(nY,nX,length(venc));
-for iVenc = 1:length(venc)
-    % Apply velocity encoding to spins
-    spinMap  = magMap.*exp(1i*vel2phase(vMap, venc(iVenc)));
-    % Get voxel signal for each compartment
-    [If(:,:,iVenc),pSim.voxIdx] = getVoxelSignal(spinMap,pSim       ,mask.lumen   );
-    [Is(:,:,iVenc),          ~] = getVoxelSignal(spinMap,pSim.voxIdx,mask.surround);
-end
-res.If = If;
-res.Is = Is;
-res.pVessel = pVessel;
-res.pVenc   = pVenc;
-res.pSim    = pSim;
-res.mask    = mask;
-res.vMap    = vMap;
-res.magMap  = magMap;
-if verbose; disp('Vessel at (x0,y0). Done.'); end
-
-
-
-
-if pSim.voxRndOffset
+% Simulate with random position of the vessel center within the center voxel
+%this will use values precomputed from above and just move the vessel around on each monte carlo iteration
+if pSim.monteCarloN > 0
+    dbstack; error('Not implemented, just copy-pasted from older code.');
     % Randomize vessel position relative to center voxel of FOV
 
     if isfield(pSim,'voxRndOffsetX') && isfield(pSim,'voxRndOffsetY') && (~isempty(pSim.voxRndOffsetX) || ~isempty(pSim.voxRndOffsetY))
