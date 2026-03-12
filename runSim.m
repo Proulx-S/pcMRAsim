@@ -7,8 +7,6 @@ if ~exist('vFix','var')     || isempty(vFix);     vFix = []; end
     % anaFlag = 'inflowOnMeanVelocity';
     % anaFlag = 'inflowOnSpinVelocity';
 
-
-    
 % Define simulation grid
 FOVx = pSim.FOVx;
 FOVy = pSim.FOVy;
