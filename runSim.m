@@ -35,12 +35,19 @@ if ~exist('pMri','var') || isempty(pMri)
     pMri.TE                 = 0.008;  % [s]   echo time
     pMri.FA                 = 40;     % [deg]
     % velocity encoding
-    pMri.venc.method        = 'PCmono'; % 'FVE' | 'PCmono' | 'PCbipo'
+    pMri.venc.method = 'PCmono'; % 'FVEmono' | 'FVEbipo' | 'PCmono' | 'PCbipo'
     switch pMri.venc.method
-        case 'FVE'    % Fourier velocity encoding
+        case 'FVEmono'    % monopolar fourier velocity encoding
             pMri.venc.vencRes       = 2;                % [cm/s]    velocity spectrum resolution (minimum velocity)
             pMri.venc.vencMax       = 50;               % [cm/s]    velocity spectrum span       (maximum velocity)
             m1List = linspace(0, vencToM1(pMri.venc.vencRes), round(vencToM1(pMri.venc.vencRes)/vencToM1(pMri.venc.vencMax))+1);
+            pMri.venc.m1List        = m1List;           % [T*s^2/m] list of velocity encoding gradient first moments
+            pMri.venc.vencList      = M1toVenc(m1List); % [cm/s]    list of velocity encoding values
+        case 'FVEbipo'    % bipolar fourier velocity encoding
+            pMri.venc.vencRes       = 2;                % [cm/s]    velocity spectrum resolution (minimum velocity)
+            pMri.venc.vencMax       = 50;               % [cm/s]    velocity spectrum span       (maximum velocity)
+            m1List = linspace(0, vencToM1(pMri.venc.vencRes), round(vencToM1(pMri.venc.vencRes)/vencToM1(pMri.venc.vencMax))+1);
+            m1List = cat(2,-flip(m1List(2:end)),m1List);
             pMri.venc.m1List        = m1List;           % [T*s^2/m] list of velocity encoding gradient first moments
             pMri.venc.vencList      = M1toVenc(m1List); % [cm/s]    list of velocity encoding values
         case 'PCmono' % monopolar phase-Contrast velocity encoding
@@ -85,15 +92,28 @@ end
 
 % Define velocity encoding
 switch pMri.venc.method
-    case 'FVE'
+    case 'FVEmono'
         m1List = linspace(0, vencToM1(pMri.venc.vencRes), round(vencToM1(pMri.venc.vencRes)/vencToM1(pMri.venc.vencMax))+1);
         pMri.venc.m1List  = m1List;
         pMri.venc.vencList = M1toVenc(m1List);
+    case 'FVEbipo'
+        if ~isfield(pMri.venc,'m1List') || isempty(pMri.venc.m1List)
+            pMri.venc.m1List   = linspace(0, vencToM1(pMri.venc.vencRes), round(vencToM1(pMri.venc.vencRes)/vencToM1(pMri.venc.vencMax))+1);
+            pMri.venc.m1List   = cat(2,-flip(pMri.venc.m1List(2:end)),pMri.venc.m1List); % [T*s^2/m]
+        end
+        if ~isfield(pMri.venc,'vencList') || isempty(pMri.venc.vencList)
+            pMri.venc.vencList = M1toVenc(pMri.venc.m1List); % [cm/s]    list of velocity encoding values
+        end
+
     case 'PCmono'
     case 'PCbipo'
     otherwise
         error('Invalid velocity encoding method: %s', pMri.venc.method);
 end
+
+% !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+% NEED TO ADAPT simVesselSpins.m FOR MULTIPLE VENC VALUES
+% !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
 % Simulate with vessel centered on center voxel
 [res.magMap,res.vMap,res.pVessel,res.pSim,res.pMri] = simVesselSpins(pVessel, pSim, pMri);
