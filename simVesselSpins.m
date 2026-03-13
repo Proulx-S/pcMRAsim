@@ -31,12 +31,12 @@ end
 if isempty(pVessel.S.lumen)
     switch pVessel.profile
         case 'plug'
-            [Mz_vMean,pMri,Mz_v0,Mz_max] = getMz_ss(pMri,pMri.relax.blood,pVessel.vMean);
-            [Mxy_vMax,pMri] = getMxy_ss(Mz_vMean,pMri,pMri.relax.blood);
+            [Mz_vMean,pMri] = getMz_ss(          pMri,pMri.relax.blood,pVessel.vMean);
+            [Mxy_vMax,pMri] = getMxy_ss(Mz_vMean,pMri,pMri.relax.blood              );
             pVessel.S.lumen = Mxy_vMax;
         case {'parabolic','parabolic1'}
-            [Mz,pMri,Mz_v0,Mz_max] = getMz_ss(pMri,pMri.relax.blood,vMap(pVessel.mask.lumen));
-            [Mxy,pMri] = getMxy_ss(Mz,pMri,pMri.relax.blood);
+            [Mz ,pMri] = getMz_ss(    pMri,pMri.relax.blood,vMap(pVessel.mask.lumen));
+            [Mxy,pMri] = getMxy_ss(Mz,pMri,pMri.relax.blood                         );
             pVessel.S.lumen = Mxy;
         otherwise
             dbstack; error('Invalid vessel profile');
