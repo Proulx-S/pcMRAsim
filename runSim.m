@@ -38,28 +38,35 @@ if ~exist('pMri','var') || isempty(pMri)
     pMri.venc.method = 'PCmono'; % 'FVEmono' | 'FVEbipo' | 'PCmono' | 'PCbipo'
     switch pMri.venc.method
         case 'FVEmono'    % monopolar fourier velocity encoding
-            pMri.venc.vencRes       = 2;                % [cm/s]    velocity spectrum resolution (minimum velocity)
-            pMri.venc.vencMax       = 50;               % [cm/s]    velocity spectrum span       (maximum velocity)
-            m1List = linspace(0, vencToM1(pMri.venc.vencRes), round(vencToM1(pMri.venc.vencRes)/vencToM1(pMri.venc.vencMax))+1)';
-            pMri.venc.m1List        = m1List;           % [T*s^2/m] list of velocity encoding gradient first moments
-            pMri.venc.vencList      = M1toVenc(m1List)'; % [cm/s]    list of velocity encoding values
+            pMri.venc.FVEres       = 2;                % [cm/s]    velocity spectrum resolution (minimum velocity)
+            pMri.venc.FVEbw        = 50;               % [cm/s]    velocity spectrum span       (maximum velocity)
+            [pMri.venc.vencList, pMri.venc.m1List, pMri.venc.FVEvel, pMri.venc.Ns, pMri.venc.vencMin, pMri.venc.vencMax] = getFVE(pMri.venc.FVEres, pMri.venc.FVEbw, pMri.venc.method);
+            pMri.venc.m1List;                           % [T*s^2/m] list of velocity encoding gradient first moments
+            pMri.venc.vencList;                         % [cm/s]    list of velocity encoding values
+            pMri.venc.FVEvel;                           % [cm/s]    velocity spectrum "frequency" axis
+            pMri.venc.vencMin;                          % [cm/s]    minimum venc value
+            pMri.venc.vencMax;                          % [cm/s]    maximum venc value
         case 'FVEbipo'    % bipolar fourier velocity encoding
-            pMri.venc.vencRes       = 2;                % [cm/s]    velocity spectrum resolution (minimum velocity)
-            pMri.venc.vencMax       = 50;               % [cm/s]    velocity spectrum span       (maximum velocity)
-            m1List = linspace(0, vencToM1(pMri.venc.vencRes), round(vencToM1(pMri.venc.vencRes)/vencToM1(pMri.venc.vencMax))+1)';
-            m1List = cat(1,-flip(m1List(2:end)),m1List);
-            pMri.venc.m1List        = m1List;           % [T*s^2/m] list of velocity encoding gradient first moments
-            pMri.venc.vencList      = M1toVenc(m1List); % [cm/s]    list of velocity encoding values
+            pMri.venc.FVEres       = 2;                % [cm/s]    velocity spectrum resolution (minimum velocity)
+            pMri.venc.FVEbw        = 50;               % [cm/s]    velocity spectrum span       (maximum velocity)
+            [pMri.venc.vencList, pMri.venc.m1List, pMri.venc.FVEvel, pMri.venc.Ns, pMri.venc.vencMin, pMri.venc.vencMax] = getFVE(pMri.venc.FVEres, pMri.venc.FVEbw, pMri.venc.method);m1List = cat(1,-flip(m1List(2:end)),m1List);
+            pMri.venc.m1List;                           % [T*s^2/m] list of velocity encoding gradient first moments
+            pMri.venc.vencList;                         % [cm/s]    list of velocity encoding values
+            pMri.venc.FVEvel;                           % [cm/s]    velocity spectrum "frequency" axis
+            pMri.venc.vencMin;                          % [cm/s]    minimum venc value
+            pMri.venc.vencMax;                          % [cm/s]    maximum venc value
         case 'PCmono' % monopolar phase-Contrast velocity encoding
-            pMri.venc.vencList      = [inf 8]';          % [cm/s] list of velocity encoding values
+            pMri.venc.vencList      = [inf 8]';         % [cm/s] list of velocity encoding values
             pMri.venc.m1List        = vencToM1(pMri.venc.vencList); % [T*s^2/m] list of velocity encoding gradient first moments
-            pMri.venc.vencRes       = [];               % not used
-            pMri.venc.vencMax       = [];               % not used
+            pMri.venc.FVEres       = [];               % not used
+            pMri.venc.FVEbw       = [];               % not used
+            pMri.venc.Fvenc         = [];               % not used
         case 'PCbipo' % bipolar phase-Contrast velocity encoding
             pMri.venc.vencList      = [-8 8]';           % [cm/s] list of velocity encoding values
             pMri.venc.m1List        = vencToM1(pMri.venc.vencList); % [T*s^2/m] list of velocity encoding gradient first moments
-            pMri.venc.vencRes       = [];               % not used
-            pMri.venc.vencMax       = [];               % not used
+            pMri.venc.FVEres       = [];               % not used
+            pMri.venc.FVEbw       = [];               % not used
+            pMri.venc.Fvenc         = [];               % not used
         otherwise
             error('Invalid velocity encoding method: %s', pMri.venc.method);
     end
@@ -92,16 +99,9 @@ end
 
 % Define velocity encoding
 switch pMri.venc.method
-    case 'FVEmono'
-        m1List = linspace(0, vencToM1(pMri.venc.vencRes), round(vencToM1(pMri.venc.vencRes)/vencToM1(pMri.venc.vencMax))+1)';
-        pMri.venc.m1List  = m1List;
-        pMri.venc.vencList = M1toVenc(m1List);
-    case 'FVEbipo'
-        pMri.venc.m1List   = linspace(0, vencToM1(pMri.venc.vencRes), round(vencToM1(pMri.venc.vencRes)/vencToM1(pMri.venc.vencMax))+1)';
-        pMri.venc.m1List   = cat(1,-flip(pMri.venc.m1List(2:end)),pMri.venc.m1List); % [T*s^2/m]
-        pMri.venc.vencList = M1toVenc(pMri.venc.m1List); % [cm/s]    list of velocity encoding values
-    case 'PCmono'
-    case 'PCbipo'
+    case {'FVEmono','FVEbipo'}
+        [pMri.venc.vencList, pMri.venc.m1List, pMri.venc.FVEvel, pMri.venc.Ns, pMri.venc.vencMin, pMri.venc.vencMax] = getFVE(pMri.venc.FVEres, pMri.venc.FVEbw, pMri.venc.method);
+    case {'PCmono' 'PCbipo'}
     otherwise
         error('Invalid velocity encoding method: %s', pMri.venc.method);
 end
