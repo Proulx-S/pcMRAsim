@@ -1,6 +1,9 @@
 function res = runSim(pVessel, pSim, pMri, verbose)
 if ~exist('verbose','var') || isempty(verbose); verbose = true; end
 
+    % when pVessel.S.lumen and pVessel.S.surround are empty, they are determined from the relaxation and acquisition parameters
+    % when pVessel.profile is numeric, it is used as the velocity profile -- this allows to specify and arbitrary velocity distribution within the whole ROI (not the center voxel). Must be of length pSim.nSpin.
+
 %% Default parameters
 % Vessel simulation parameters
 if ~exist('pVessel','var') || isempty(pVessel)
@@ -23,7 +26,7 @@ if ~exist('pSim','var') || isempty(pSim)
     pSim.voxPE       = pSim.voxFE; % [mm]     voxel  size in PE direction
     pSim.matFE       = 3;          % [voxels] matrix size in FE direction (must be odd)
     pSim.matPE       = pSim.matFE; % [voxels] matrix size in PE direction (must be odd)
-    pSim.nSpin       = (2^8)^2;    % [n] spins per voxel
+    pSim.nSpin       = (2^8+1)^2;    % [n] spins per voxel
     % randomization of vessel position relative to center voxel
     pSim.monteCarloN = 0;          % [n] number of bootstrap object-to-grid random shifts
 end

@@ -14,15 +14,22 @@ if isempty(pVessel.mask.lumen) || isempty(pVessel.mask.wall) || isempty(pVessel.
 end
 
 % Define spin velocity map
-vMap = getVelMap(rGrid, pVessel.ID, pVessel.profile, pVessel.PD); % [cm/s]
-if ~isempty(pVessel.vMax) && isempty(pVessel.vMean)
-    vMap = scale2maxVel(vMap, pVessel.vMax); % to the desired maximum velocity
-elseif ~isempty(pVessel.vMean) && isempty(pVessel.vMax)
-    vMap = scale2meanVel(vMap, pVessel.vMean, pVessel.mask.lumen); % to the desired mean velocity
-elseif strcmp(pVessel.profile,'parabolic1') && ~isempty(pVessel.vMax) && ~isempty(pVessel.vMean) && pVessel.vMax/2==pVessel.vMean
-    vMap = scale2meanVel(vMap, pVessel.vMean, pVessel.mask.lumen); % to the desired mean velocity
+if ischar(pVessel.profile)
+    vMap = getVelMap(rGrid, pVessel.ID, pVessel.profile, pVessel.PD); % [cm/s]
+    if ~isempty(pVessel.vMax) && isempty(pVessel.vMean)
+        vMap = scale2maxVel(vMap, pVessel.vMax); % to the desired maximum velocity
+    elseif ~isempty(pVessel.vMean) && isempty(pVessel.vMax)
+        vMap = scale2meanVel(vMap, pVessel.vMean, pVessel.mask.lumen); % to the desired mean velocity
+    elseif strcmp(pVessel.profile,'parabolic1') && ~isempty(pVessel.vMax) && ~isempty(pVessel.vMean) && pVessel.vMax/2==pVessel.vMean
+        vMap = scale2meanVel(vMap, pVessel.vMean, pVessel.mask.lumen); % to the desired mean velocity
+    else
+        error('Either pVessel.vMax or pVessel.vMean must be specified');
+    end
+elseif isnumeric(pVessel.profile)
+    vMap = zeros(size(rGrid));
+    vMap(:) = pVessel.profile;
 else
-    error('Either pVessel.vMax or pVessel.vMean must be specified');
+    dbstack; error('Invalid vessel profile');
 end
 
 
