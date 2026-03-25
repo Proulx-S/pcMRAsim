@@ -38,7 +38,7 @@ if ~exist('pMri','var') || isempty(pMri)
     pMri.TE                 = 0.008;  % [s]   echo time
     pMri.FA                 = 40;     % [deg]
     % velocity encoding
-    pMri.venc.method = 'PCmono'; % 'FVEmono' | 'FVEbipo' | 'PCmono' | 'PCbipo'
+    pMri.venc.method = 'FVEbipo'; % 'FVEmono' | 'FVEbipo' | 'PCmono' | 'PCbipo'
     switch pMri.venc.method
         case 'FVEmono'    % monopolar fourier velocity encoding
             pMri.venc.FVEres       = 2;                % [cm/s]    velocity spectrum resolution (minimum velocity)
@@ -52,7 +52,7 @@ if ~exist('pMri','var') || isempty(pMri)
         case 'FVEbipo'    % bipolar fourier velocity encoding
             pMri.venc.FVEres       = 2;                % [cm/s]    velocity spectrum resolution (minimum velocity)
             pMri.venc.FVEbw        = 50;               % [cm/s]    velocity spectrum span       (maximum velocity)
-            [pMri.venc.vencList, pMri.venc.m1List, pMri.venc.FVEvel, pMri.venc.Ns, pMri.venc.vencMin, pMri.venc.vencMax] = getFVE(pMri.venc.FVEres, pMri.venc.FVEbw, pMri.venc.method);m1List = cat(1,-flip(m1List(2:end)),m1List);
+            [pMri.venc.vencList, pMri.venc.m1List, pMri.venc.FVEvel, pMri.venc.Ns, pMri.venc.vencMin, pMri.venc.vencMax] = getFVE(pMri.venc.FVEres, pMri.venc.FVEbw, pMri.venc.method);
             pMri.venc.m1List;                           % [T*s^2/m] list of velocity encoding gradient first moments
             pMri.venc.vencList;                         % [cm/s]    list of velocity encoding values
             pMri.venc.FVEvel;                           % [cm/s]    velocity spectrum "frequency" axis
