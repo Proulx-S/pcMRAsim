@@ -6,12 +6,12 @@ if ~exist('posPE','var') || isempty(posPE); posPE = 0; end
 rGrid = sqrt((pSim.gridFE-posFE).^2 + (pSim.gridPE-posPE).^2);
 
 % Define compartments masks
-if ~isfield(pVessel,'mask'); pVessel.mask = struct('lumen',[],'wall',[],'surround',[]); end
-if isempty(pVessel.mask.lumen) || isempty(pVessel.mask.wall) || isempty(pVessel.mask.surround)
+% if ~isfield(pVessel,'mask'); pVessel.mask = struct('lumen',[],'wall',[],'surround',[]); end
+% if isempty(pVessel.mask.lumen) || isempty(pVessel.mask.wall) || isempty(pVessel.mask.surround)
     pVessel.mask.lumen      = rGrid<=(pVessel.ID/2);                                    % vessel lumen
     pVessel.mask.wall       = rGrid> (pVessel.ID/2) & rGrid<=(pVessel.ID/2+pVessel.WT); % vessel wall
     pVessel.mask.surround   = rGrid> (pVessel.ID/2+pVessel.WT);                         % static surround
-end
+% end
 
 % Define spin velocity map
 if ischar(pVessel.profile)
@@ -35,25 +35,21 @@ end
 
 % MR signal magnitude
 % vessel lumen signal (flowing)
-if isempty(pVessel.S.lumen)
-    switch pVessel.profile
-        case 'plug'
-            [Mz_vMean,pMri] = getMz_ss(          pMri,pMri.relax.blood,pVessel.vMean);
-            [Mxy_vMax,pMri] = getMxy_ss(Mz_vMean,pMri,pMri.relax.blood              );
-            pVessel.S.lumen = Mxy_vMax;
-        case {'parabolic','parabolic1'}
-            [Mz ,pMri] = getMz_ss(    pMri,pMri.relax.blood,vMap(pVessel.mask.lumen));
-            [Mxy,pMri] = getMxy_ss(Mz,pMri,pMri.relax.blood                         );
-            pVessel.S.lumen = Mxy;
-        otherwise
-            dbstack; error('Invalid vessel profile');
-    end
+switch pVessel.profile
+    case 'plug'
+        [Mz_vMean,pMri] = getMz_ss(          pMri,pMri.relax.blood,pVessel.vMean);
+        [Mxy_vMax,pMri] = getMxy_ss(Mz_vMean,pMri,pMri.relax.blood              );
+        pVessel.S.lumen = Mxy_vMax;
+    case {'parabolic','parabolic1'}
+        [Mz ,pMri] = getMz_ss(    pMri,pMri.relax.blood,vMap(pVessel.mask.lumen));
+        [Mxy,pMri] = getMxy_ss(Mz,pMri,pMri.relax.blood                         );
+        pVessel.S.lumen = Mxy;
+    otherwise
+        dbstack; error('Invalid vessel profile');
 end
 % vessel surround (static)
-if isempty(pVessel.S.surround)
-    Mxy = getMxy_ss(getMz_ss(pMri,pMri.relax.GM),pMri,pMri.relax.GM);
-    pVessel.S.surround = Mxy;
-end
+Mxy = getMxy_ss(getMz_ss(pMri,pMri.relax.GM),pMri,pMri.relax.GM);
+pVessel.S.surround = Mxy;
 % map signal magnitude
 magMap = zeros(size(rGrid));
 magMap(pVessel.mask.lumen)    = pVessel.S.lumen;
