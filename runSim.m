@@ -12,7 +12,7 @@ if ~exist('pVessel','var') || isempty(pVessel)
     pVessel.PD          = 0;   % [mm]     plug flow center diameter
     pVessel.WT          = 0;   % [mm]     vessel wall thickness
     pVessel.profile     = 'parabolic1'; % flow profile: 'parabolic' | 'parabolic1' | 'plug' | 'plugFlow'
-    pVessel.vMean       = 10;  % [cm/s]   mean    cross-sectional (through-slice) velocity
+    pVessel.vMean       = 5;  % [cm/s]   mean    cross-sectional (through-slice) velocity
     pVessel.vMax        = [];  % [cm/s]   maximum cross-sectional (through-slice) velocity
     pVessel.vFlow       = [];  % [ml/min] blood flow
     % mr signal intensities -- leave empty for a determination based on relaxation and acquisition parameters
@@ -62,7 +62,7 @@ if ~exist('pMri','var') || iscell(pMri) || isempty(pMri)
     pMri.venc.method = vencMethod; % 'FVEmono' | 'FVEbipo' | 'PCmono' | 'PCbipo'
     clear vencMethod;
     switch pMri.venc.method
-        case 'FVEmono'    % monopolar fourier velocity encoding
+        case {'FVEmono' 'FVEbipo'}    % monopolar/bipolar fourier velocity encoding
             pMri.venc.FVEres       = 2;                % [cm/s]    velocity spectrum resolution (minimum velocity)
             pMri.venc.FVEbw        = 50;               % [cm/s]    velocity spectrum span       (maximum velocity)
             [pMri.venc.vencList, pMri.venc.m1List, pMri.venc.FVEvel, pMri.venc.Ns, pMri.venc.vencMin, pMri.venc.vencMax] = getFVE(pMri.venc.FVEres, pMri.venc.FVEbw, pMri.venc.method);
@@ -70,32 +70,15 @@ if ~exist('pMri','var') || iscell(pMri) || isempty(pMri)
             pMri.venc.FVEvel;                           % [cm/s]    velocity spectrum "frequency" axis
             pMri.venc.vencMin;                          % [cm/s]    minimum venc value
             pMri.venc.vencMax;                          % [cm/s]    maximum venc value
-        case 'FVEbipo'    % bipolar fourier velocity encoding
-            pMri.venc.FVEres       = 2;                % [cm/s]    velocity spectrum resolution (minimum velocity)
-            pMri.venc.FVEbw        = 50;               % [cm/s]    velocity spectrum span       (maximum velocity)
-            [pMri.venc.vencList, pMri.venc.m1List, pMri.venc.FVEvel, pMri.venc.Ns, pMri.venc.vencMin, pMri.venc.vencMax] = getFVE(pMri.venc.FVEres, pMri.venc.FVEbw, pMri.venc.method);
-            pMri.venc.vencList;                         % [cm/s]    list of velocity encoding values
-            pMri.venc.FVEvel;                           % [cm/s]    velocity spectrum "frequency" axis
-            pMri.venc.vencMin;                          % [cm/s]    minimum venc value
-            pMri.venc.vencMax;                          % [cm/s]    maximum venc value
-        case 'PCmono' % monopolar phase-Contrast velocity encoding
-            pMri.venc.FVEres = 0; % not used
-            pMri.venc.FVEbw  = 0; % not used
-            pMri.venc.vencList = [inf 8]';         % [cm/s] list of velocity encoding values
-            pMri.venc.FVEres  = []; % not used
-            pMri.venc.FVEbw   = []; % not used
-            pMri.venc.FVEvel  = []; % not used
-            pMri.venc.vencMin = []; % not used
-            pMri.venc.vencMax = []; % not used
-        case 'PCbipo' % bipolar phase-Contrast velocity encoding
-            pMri.venc.FVEres  = 0; % not used
-            pMri.venc.FVEbw   = 0; % not used
-            pMri.venc.vencList = [-8 8]';           % [cm/s] list of velocity encoding values
-            pMri.venc.FVEres  = []; % not used
-            pMri.venc.FVEbw   = []; % not used
-            pMri.venc.FVEvel  = []; % not used
-            pMri.venc.vencMin = []; % not used
-            pMri.venc.vencMax = []; % not used
+        case {'PCmono' 'PCbipo'} % monopolar/bipolar (one-sided/two-sided) phase-contrast velocity encoding
+            pMri.venc.FVEres   = 0;  % not used
+            pMri.venc.FVEbw    = 0;  % not used
+            pMri.venc.vencList = [20 40]; % [cm/s] list of velocity encoding values
+            pMri.venc.FVEres   = []; % not used
+            pMri.venc.FVEbw    = []; % not used
+            pMri.venc.FVEvel   = []; % not used
+            pMri.venc.vencMin  = []; % not used
+            pMri.venc.vencMax  = []; % not used
         otherwise
             error('Invalid velocity encoding method: %s', pMri.venc.method);
     end
@@ -162,8 +145,14 @@ switch pMri.venc.method
     case {'FVEmono','FVEbipo'}
         [pMri.venc.vencList, pMri.venc.m1List, pMri.venc.FVEvel, pMri.venc.Ns, pMri.venc.vencMin, pMri.venc.vencMax] = getFVE(pMri.venc.FVEres, pMri.venc.FVEbw, pMri.venc.method);
         pMri.venc.m1List; % [T*s^2/m]
-    case {'PCmono' 'PCbipo'}
+    case 'PCmono'
+        pMri.venc.vencList = pMri.venc.vencList(:);
         pMri.venc.m1List = vencToM1(pMri.venc.vencList); % [T*s^2/m]
+        pMri.venc.m1List = cat(2,pMri.venc.m1List,zeros(size(pMri.venc.m1List))); % second line for references (M1=0 in the monopolar case)
+    case 'PCbipo'
+        pMri.venc.vencList = pMri.venc.vencList(:);
+        pMri.venc.m1List = vencToM1(pMri.venc.vencList); % [T*s^2/m]
+        pMri.venc.m1List = cat(2,pMri.venc.m1List,-pMri.venc.m1List)./2; % second line for references (-M1 in the bipolar case) and divide by 2 for bipolar encoding
     otherwise
         error('Invalid velocity encoding method: %s', pMri.venc.method);
 end
@@ -172,7 +161,8 @@ end
 [res.magMap,res.vMap,res.pVessel,res.pSim,res.pMri] = simVesselSpins(pVessel, pSim, pMri);
 
 % Simulate spins and center voxel averaging
-res.spinMap = res.magMap.*exp(1i*vel2phase(res.vMap, res.pMri.venc.vencList));
+m1 = permute(res.pMri.venc.m1List,[3 4 5 6 1 2 7 8 9 10 11 12 13 14 15 16]);
+res.spinMap = res.magMap.*exp(1i*vel2phase(res.vMap, m1));
 spinMap = permute(res.spinMap,[5 6 7 8 9 10 11 12 13 14 15 16 1 2 3 4]);
 I  = sum(spinMap(:,:,:,:,:,:,:,:,:,:,:,:,res.pSim.gridVoxIdx==0                            ),13); % total signal
 If = sum(spinMap(:,:,:,:,:,:,:,:,:,:,:,:,res.pSim.gridVoxIdx==0 & res.pVessel.mask.lumen   ),13); % lumen signal
@@ -181,7 +171,7 @@ res.I  = permute(I,  [13 14 15 16 1 2 3 4 5 6 7 8 9 10 11 12]);
 res.If = permute(If, [13 14 15 16 1 2 3 4 5 6 7 8 9 10 11 12]);
 res.Is = permute(Is, [13 14 15 16 1 2 3 4 5 6 7 8 9 10 11 12]);
 
-dimList = {'FE' 'PE' 'SL' 't' 'venc'};
+dimList = {'FE' 'PE' 'SL' 't' 'M1' 'M1ref'};
 res.info = strjoin(dimList,' x ');
 
 
@@ -190,9 +180,9 @@ res.info = strjoin(dimList,' x ');
 %this will use values precomputed from above and just move the vessel around on each monte carlo iteration
 if pSim.monteCarloN > 0
 
-    res.I  = cat(6,res.I ,nan([size(res.I ,1:5) pSim.monteCarloN]));
-    res.If = cat(6,res.If,nan([size(res.If,1:5) pSim.monteCarloN]));
-    res.Is = cat(6,res.Is,nan([size(res.Is,1:5) pSim.monteCarloN]));
+    res.I  = cat(7,res.I ,nan([size(res.I ,1:6) pSim.monteCarloN]));
+    res.If = cat(7,res.If,nan([size(res.If,1:6) pSim.monteCarloN]));
+    res.Is = cat(7,res.Is,nan([size(res.Is,1:6) pSim.monteCarloN]));
     res.info = strjoin({res.info 'mntCrls'},' x ');
 
 
@@ -208,9 +198,9 @@ if pSim.monteCarloN > 0
         If = sum(spinMap(:,:,:,:,:,:,:,:,:,:,:,:,gridVoxIdx==0 & res.pVessel.mask.lumen   ),13); % lumen signal
         Is = sum(spinMap(:,:,:,:,:,:,:,:,:,:,:,:,gridVoxIdx==0 & res.pVessel.mask.surround),13); % surround signal
 
-        res.I( :,:,:,:,:,iMntCrl+1) = permute(I,  [13 14 15 16 1 2 3 4 5 6 7 8 9 10 11 12]);
-        res.If(:,:,:,:,:,iMntCrl+1) = permute(If, [13 14 15 16 1 2 3 4 5 6 7 8 9 10 11 12]);
-        res.Is(:,:,:,:,:,iMntCrl+1) = permute(Is, [13 14 15 16 1 2 3 4 5 6 7 8 9 10 11 12]);
+        res.I( :,:,:,:,:,:,iMntCrl+1) = permute(I,  [13 14 15 16 1 2 3 4 5 6 7 8 9 10 11 12]);
+        res.If(:,:,:,:,:,:,iMntCrl+1) = permute(If, [13 14 15 16 1 2 3 4 5 6 7 8 9 10 11 12]);
+        res.Is(:,:,:,:,:,:,iMntCrl+1) = permute(Is, [13 14 15 16 1 2 3 4 5 6 7 8 9 10 11 12]);
     end
     if verbose; disp('Vessel at random positions. Done.'); end
 end
