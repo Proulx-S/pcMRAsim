@@ -185,14 +185,16 @@ if pSim.monteCarloN > 0
     res.Is = cat(7,res.Is,nan([size(res.Is,1:6) pSim.monteCarloN]));
     res.info = strjoin({res.info 'mntCrls'},' x ');
 
-
-    nSpinFE = max(sum(res.pSim.gridVoxIdx==0,2));
-    shiftFE = (1:nSpinFE)-nSpinFE/2-0.5;
-    nSpinPE = max(sum(res.pSim.gridVoxIdx==0,1));
-    shiftPE = (1:nSpinPE)-nSpinPE/2-0.5;    
+    
+    % nSpinFE = max(sum(res.pSim.gridVoxIdx==0,2));
+    % shiftFE = (1:nSpinFE)-nSpinFE/2-0.5;
+    % nSpinPE = max(sum(res.pSim.gridVoxIdx==0,1));
+    % shiftPE = (1:nSpinPE)-nSpinPE/2-0.5;    
 
     for iMntCrl = 1:pSim.monteCarloN
-        gridVoxIdx = circshift(res.pSim.gridVoxIdx, [shiftFE(randperm(length(shiftFE),1)) shiftPE(randperm(length(shiftPE),1))] );
+
+        % shift the grid voxels by the monte carlo shift, relative to the spin map
+        gridVoxIdx = circshift(res.pSim.gridVoxIdx, [res.pSim.monteCarloShiftFE(iMntCrl) res.pSim.monteCarloShiftPE(iMntCrl)] );
 
         I  = sum(spinMap(:,:,:,:,:,:,:,:,:,:,:,:,gridVoxIdx==0                            ),13); % total signal
         If = sum(spinMap(:,:,:,:,:,:,:,:,:,:,:,:,gridVoxIdx==0 & res.pVessel.mask.lumen   ),13); % lumen signal

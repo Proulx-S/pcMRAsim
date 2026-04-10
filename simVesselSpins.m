@@ -58,12 +58,13 @@ magMap = magMap./pSim.nSpin; % divide by the number of spins a voxel, so summing
 
 
 % Precompute montecarlo tessalation
-if pSim.monteCarloN > 0 && (~isfield(pSim,'monteCarloPermFE') || ~isfield(pSim,'monteCarloPermPE') || isempty(pSim.monteCarloPermFE) || isempty(pSim.monteCarloPermPE))
+if pSim.monteCarloN > 0 && (~isfield(pSim,'monteCarloShiftFE') || ~isfield(pSim,'monteCarloShiftPE') || isempty(pSim.monteCarloShiftFE) || isempty(pSim.monteCarloShiftPE))
     nSpinFE = max(sum(pSim.gridVoxIdx==0,2));
     shiftFE = (1:nSpinFE)-nSpinFE/2-0.5;
-    pSim.monteCarloPermFE = permute(randperm(length(shiftFE),pSim.monteCarloN),[1 3 4 5 6 7 2]);
+    pSim.monteCarloShiftFE = shiftFE(permute(randperm(length(shiftFE),pSim.monteCarloN),[1 3 4 5 6 7 2]));
+
     nSpinPE = max(sum(pSim.gridVoxIdx==0,1));
     shiftPE = (1:nSpinPE)-nSpinPE/2-0.5;
-    pSim.monteCarloPermPE = permute(randperm(length(shiftPE),pSim.monteCarloN),[1 3 4 5 6 7 2]);
+    pSim.monteCarloShiftPE = shiftPE(permute(randperm(length(shiftPE),pSim.monteCarloN),[1 3 4 5 6 7 2]));
 end
 
