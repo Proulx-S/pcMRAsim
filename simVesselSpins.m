@@ -56,3 +56,14 @@ magMap(pVessel.mask.lumen)    = pVessel.S.lumen;
 magMap(pVessel.mask.surround) = pVessel.S.surround;
 magMap = magMap./pSim.nSpin; % divide by the number of spins a voxel, so summing the spins gives the measured signal in a voxel
 
+
+% Precompute montecarlo tessalation
+if pSim.monteCarloN > 0 && (~isfield(pSim,'monteCarloPermFE') || ~isfield(pSim,'monteCarloPermPE') || isempty(pSim.monteCarloPermFE) || isempty(pSim.monteCarloPermPE))
+    nSpinFE = max(sum(pSim.gridVoxIdx==0,2));
+    shiftFE = (1:nSpinFE)-nSpinFE/2-0.5;
+    pSim.monteCarloPermFE = permute(randperm(length(shiftFE),pSim.monteCarloN),[1 3 4 5 6 7 2]);
+    nSpinPE = max(sum(pSim.gridVoxIdx==0,1));
+    shiftPE = (1:nSpinPE)-nSpinPE/2-0.5;
+    pSim.monteCarloPermPE = permute(randperm(length(shiftPE),pSim.monteCarloN),[1 3 4 5 6 7 2]);
+end
+
