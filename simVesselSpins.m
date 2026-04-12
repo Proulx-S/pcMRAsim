@@ -61,10 +61,18 @@ magMap = magMap./pSim.nSpin; % divide by the number of spins a voxel, so summing
 if pSim.monteCarloN > 0 && (~isfield(pSim,'monteCarloShiftFE') || ~isfield(pSim,'monteCarloShiftPE') || isempty(pSim.monteCarloShiftFE) || isempty(pSim.monteCarloShiftPE))
     nSpinFE = max(sum(pSim.gridVoxIdx==0,2));
     shiftFE = (1:nSpinFE)-nSpinFE/2-0.5;
-    pSim.monteCarloShiftFE = shiftFE(permute(randperm(length(shiftFE),pSim.monteCarloN),[1 3 4 5 6 7 2]));
-
     nSpinPE = max(sum(pSim.gridVoxIdx==0,1));
     shiftPE = (1:nSpinPE)-nSpinPE/2-0.5;
-    pSim.monteCarloShiftPE = shiftPE(permute(randperm(length(shiftPE),pSim.monteCarloN),[1 3 4 5 6 7 2]));
+    % find all possible combination of FE and PE shifts
+    [idx1, idx2] = ndgrid(1:length(shiftFE), 1:length(shiftPE));
+    idx = [idx1(:), idx2(:)];
+    % remove the no-shift combination since it is always done before
+    idx(all(idx==[find(shiftFE==0) find(shiftPE==0)],2),:) = [];
+    % shuffle
+    if pSim.monteCarloN~=inf
+        idx = idx(randperm(size(idx,1),pSim.monteCarloN),:);
+    end
+    pSim.monteCarloShiftFE = shiftFE(idx(:,1));
+    pSim.monteCarloShiftPE = shiftPE(idx(:,2));
 end
 
