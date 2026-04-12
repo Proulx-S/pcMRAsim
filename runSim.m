@@ -185,12 +185,6 @@ if pSim.monteCarloN > 0
     res.Is = cat(7,res.Is,nan([size(res.Is,1:6) pSim.monteCarloN]));
     res.info = strjoin({res.info 'mntCrls'},' x ');
 
-    
-    % nSpinFE = max(sum(res.pSim.gridVoxIdx==0,2));
-    % shiftFE = (1:nSpinFE)-nSpinFE/2-0.5;
-    % nSpinPE = max(sum(res.pSim.gridVoxIdx==0,1));
-    % shiftPE = (1:nSpinPE)-nSpinPE/2-0.5;    
-
     for iMntCrl = 1:pSim.monteCarloN
 
         % shift the grid voxels by the monte carlo shift, relative to the spin map
@@ -205,4 +199,18 @@ if pSim.monteCarloN > 0
         res.Is(:,:,:,:,:,:,iMntCrl+1) = permute(Is, [13 14 15 16 1 2 3 4 5 6 7 8 9 10 11 12]);
     end
     if verbose; disp('Vessel at random positions. Done.'); end
+end
+
+
+
+%% Subtract ref phase
+switch pMri.venc.method
+    case {'FVEmono','FVEbipo'}
+        dbstack; error('Not implemented');
+        res.info2 = 'ref phase subtracted';
+    case {'PCmono' 'PCbipo'}
+        res.I  = res.I  ./ exp(1i*angle(res.I( :,:,:,:,:,end,:,:,:,:,:,:,:,:,:,:)));
+        res.If = res.If ./ exp(1i*angle(res.If(:,:,:,:,:,end,:,:,:,:,:,:,:,:,:,:)));
+        res.Is = res.Is ./ exp(1i*angle(res.Is(:,:,:,:,:,end,:,:,:,:,:,:,:,:,:,:)));
+        res.info2 = 'ref phase subtracted';
 end
