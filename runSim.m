@@ -1,5 +1,6 @@
-function res = runSim(pVessel, pSim, pMri, verbose)
+function res = runSim(pVessel, pSim, pMri, verbose, light)
 if ~exist('verbose','var') || isempty(verbose); verbose = true; end
+if ~exist('light'  ,'var') || isempty(light  ); light   = false; end
 
     % when pVessel.S.lumen and pVessel.S.surround are empty, they are determined from the relaxation and acquisition parameters
     % when pVessel.profile is numeric, it is used as the velocity profile -- this allows to specify and arbitrary velocity distribution within the whole ROI (not the center voxel). Must be of length pSim.nSpin.
@@ -160,10 +161,14 @@ end
 % Simulate with vessel centered on center voxel
 [res.magMap,res.vMap,res.pVessel,res.pSim,res.pMri] = simVesselSpins(pVessel, pSim, pMri);
 
-% Simulate spins and center voxel averaging
+% Simulate spin map
 m1 = permute(res.pMri.venc.m1List,[3 4 5 6 1 2 7 8 9 10 11 12 13 14 15 16]);
 res.spinMap = res.magMap.*exp(1i*vel2phase(res.vMap, m1));
 spinMap = permute(res.spinMap,[5 6 7 8 9 10 11 12 13 14 15 16 1 2 3 4]);
+
+
+
+%% Center voxel averaging
 I  = sum(spinMap(:,:,:,:,:,:,:,:,:,:,:,:,res.pSim.gridVoxIdx==0                            ),13); % total signal
 If = sum(spinMap(:,:,:,:,:,:,:,:,:,:,:,:,res.pSim.gridVoxIdx==0 & res.pVessel.mask.lumen   ),13); % lumen signal
 Is = sum(spinMap(:,:,:,:,:,:,:,:,:,:,:,:,res.pSim.gridVoxIdx==0 & res.pVessel.mask.surround),13); % surround signal
@@ -173,8 +178,6 @@ res.Is = permute(Is, [13 14 15 16 1 2 3 4 5 6 7 8 9 10 11 12]);
 
 dimList = {'FE' 'PE' 'SL' 't' 'M1' 'M1ref'};
 res.info = strjoin(dimList,' x ');
-
-
 
 % Simulate with random position of the vessel center within the center voxel
 %this will use values precomputed from above and just move the vessel around on each monte carlo iteration
@@ -214,3 +217,22 @@ switch pMri.venc.method
         res.Is = res.Is ./ exp(1i*angle(res.Is(:,:,:,:,:,end,:,:,:,:,:,:,:,:,:,:)));
         res.info2 = 'ref phase subtracted';
 end
+
+
+
+%% Reduce size of stored data
+if light
+    res.magMap  = [];
+    res.vMap    = [];
+    res.spinMap = [];
+else
+    res.magMap  = single(res.magMap );
+    res.vMap    = single(res.vMap   );
+    res.spinMap = single(res.spinMap);
+end
+res.pVessel.S.lumen    = single(res.pVessel.S.lumen   );
+res.pVessel.S.wall     = single(res.pVessel.S.wall    );
+res.pVessel.S.surround = single(res.pVessel.S.surround);
+res.pSim.gridFE     = single(res.pSim.gridFE   );
+res.pSim.gridPE     = single(res.pSim.gridPE   );
+res.pSim.gridVoxIdx = uint8(res.pSim.gridVoxIdx);
