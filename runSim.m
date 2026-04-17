@@ -34,7 +34,7 @@ end
 % MR parameters
 if ~exist('pMri','var') || iscell(pMri) || isempty(pMri)
     % imaging
-    if iscell(pMri)
+    if exist('pMri','var') && iscell(pMri)
         vencMethodList = {'FVEmono','FVEbipo','PCmono','PCbipo'};
         fieldStrengthList = {'7t','14t'};
         vencMethod    = pMri{ismember(pMri, vencMethodList)};
