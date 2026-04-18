@@ -209,8 +209,6 @@ end
 %% Subtract ref phase
 switch pMri.venc.method
     case {'FVEmono','FVEbipo'}
-        dbstack; error('Not implemented');
-        res.info2 = 'ref phase subtracted';
     case {'PCmono' 'PCbipo'}
         res.I  = res.I  ./ exp(1i*angle(res.I( :,:,:,:,:,end,:,:,:,:,:,:,:,:,:,:)));
         res.If = res.If ./ exp(1i*angle(res.If(:,:,:,:,:,end,:,:,:,:,:,:,:,:,:,:)));
