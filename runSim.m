@@ -1,6 +1,6 @@
 function res = runSim(pVessel, pSim, pMri, verbose, light)
 if ~exist('verbose','var') || isempty(verbose); verbose = true; end
-if ~exist('light'  ,'var') || isempty(light  ); light   = false; end
+if ~exist('light'  ,'var') || isempty(light  ); light   = true; end
 
     % when pVessel.S.lumen and pVessel.S.surround are empty, they are determined from the relaxation and acquisition parameters
     % when pVessel.profile is numeric, it is used as the velocity profile -- this allows to specify and arbitrary velocity distribution within the whole ROI (not the center voxel). Must be of length pSim.nSpin.
