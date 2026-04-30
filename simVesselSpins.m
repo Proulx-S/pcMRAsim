@@ -35,17 +35,19 @@ end
 
 % MR signal magnitude
 % vessel lumen signal (flowing)
-switch pVessel.profile
-    case 'plug'
-        [Mz_vMean,pMri] = getMz_ss(          pMri,pMri.relax.blood,pVessel.vMean);
-        [Mxy_vMax,pMri] = getMxy_ss(Mz_vMean,pMri,pMri.relax.blood              );
-        pVessel.S.lumen = Mxy_vMax;
-    case {'parabolic','parabolic1'}
-        [Mz ,pMri] = getMz_ss(    pMri,pMri.relax.blood,vMap(pVessel.mask.lumen));
-        [Mxy,pMri] = getMxy_ss(Mz,pMri,pMri.relax.blood                         );
-        pVessel.S.lumen = Mxy;
-    otherwise
-        dbstack; error('Invalid vessel profile');
+if isempty(pVessel.S.lumen)
+    switch pVessel.profile
+        case 'plug'
+            [Mz_vMean,pMri] = getMz_ss(          pMri,pMri.relax.blood,pVessel.vMean);
+            [Mxy_vMax,pMri] = getMxy_ss(Mz_vMean,pMri,pMri.relax.blood              );
+            pVessel.S.lumen = Mxy_vMax;
+        case {'parabolic','parabolic1'}
+            [Mz ,pMri] = getMz_ss(    pMri,pMri.relax.blood,vMap(pVessel.mask.lumen));
+            [Mxy,pMri] = getMxy_ss(Mz,pMri,pMri.relax.blood                         );
+            pVessel.S.lumen = Mxy;
+        otherwise
+            dbstack; error('Invalid vessel profile');
+    end
 end
 % vessel surround (static)
 Mxy = getMxy_ss(getMz_ss(pMri,pMri.relax.GM),pMri,pMri.relax.GM);
