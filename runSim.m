@@ -13,7 +13,7 @@ if ~exist('pVessel','var') || isempty(pVessel)
     pVessel.PD          = 0;   % [mm]     plug flow center diameter
     pVessel.WT          = 0;   % [mm]     vessel wall thickness
     pVessel.profile     = 'parabolic1'; % flow profile: 'parabolic' | 'parabolic1' | 'plug' | 'plugFlow'
-    pVessel.vMean       = 5;  % [cm/s]   mean    cross-sectional (through-slice) velocity
+    pVessel.vMean       = 1.5;  % [cm/s]   mean    cross-sectional (through-slice) velocity
     pVessel.vMax        = [];  % [cm/s]   maximum cross-sectional (through-slice) velocity
     pVessel.vFlow       = [];  % [ml/min] blood flow
     % mr signal intensities -- leave empty for a determination based on relaxation and acquisition parameters
