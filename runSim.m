@@ -94,15 +94,21 @@ if ~exist('pMri','var') || iscell(pMri) || isempty(pMri)
         otherwise
             error('Invalid velocity encoding method: %s', pMri.venc.method);
     end
-    % relaxation
+
+
+end
+% Populate relaxation parameters from fieldStrength and species.
+% Runs unconditionally so that changing fieldStrength/species on a pre-built pMri struct
+% is picked up on the next runSim call without having to clear pMri.relax manually.
+if isfield(pMri,'fieldStrength') && isfield(pMri,'species')
     switch pMri.fieldStrength
         case 7
             switch pMri.species
                 case 'human'
                     pMri.relax.blood.T1     = 2.58   ;   % [s]
                     pMri.relax.blood.T2star = 10e-3  ;   % [s]
-                    pMri.relax.GM.T1        = 1.939  ;  % [s]
-                    pMri.relax.GM.T2star    = 32.9e-3; % [s]
+                    pMri.relax.GM.T1        = 1.939  ;   % [s]
+                    pMri.relax.GM.T2star    = 32.9e-3;   % [s]
                 otherwise
                     error('Invalid species: %s', pMri.species);
             end
@@ -135,11 +141,19 @@ if ~exist('pMri','var') || iscell(pMri) || isempty(pMri)
             %   T2* < T2 due to susceptibility; T2* shortens with B0. Estimate venous T2* at 14T ~10 ms.
             % Mouse at 14T: no direct 14T. R2* increases ~linearly with B0; at 17.6T mouse brain T2* measured (Kara et al., MRM 70:985–993, 2013).
             %   Extrapolation 7T→14T: T2* scales roughly as 1/B0 → cortical GM at 14T ~15 ms. Using 15 ms as nominal.
+        case 3
+            switch pMri.species
+                case 'phantom'
+                    pMri.relax.blood.T1     = 3.25; % [s] TODO: use truer values
+                    pMri.relax.blood.T2star = 0.25; % [s] TODO: use truer values
+                    pMri.relax.GM.T1        = 1.10; % [s] TODO: use truer values
+                    pMri.relax.GM.T2star    = 0.05; % [s] TODO: use truer values
+                otherwise
+                    error('Invalid species: %s', pMri.species);
+            end
         otherwise
-            error('Invalid field strength: %s', pMri.fieldStrength);
+            error('Invalid field strength: %d', pMri.fieldStrength);
     end
-
-    
 end
 
 if nargin == 0
