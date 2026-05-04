@@ -1,6 +1,17 @@
-function res = runSim(pVessel, pSim, pMri, verbose, light)
-if ~exist('verbose','var') || isempty(verbose); verbose = true; end
-if ~exist('light'  ,'var') || isempty(light  ); light   = true; end
+function res = runSim(pVessel, pSim, pMri, verbose, light, earlyStop)
+if ~exist('verbose'  ,'var') || isempty(verbose  ); verbose   = true;  end
+if ~exist('light'    ,'var') || isempty(light    ); light     = true;  end
+if ~exist('earlyStop','var') || isempty(earlyStop); earlyStop = false; end
+
+% Recovery mode: res struct passed as first arg — re-run simVesselSpins to restore magMap/vMap
+if isstruct(pVessel) && isfield(pVessel, 'pVessel')
+    resOld  = pVessel;
+    resNew  = runSim(resOld.pVessel, resOld.pSim, resOld.pMri, verbose, light, true);
+    resOld.magMap = resNew.magMap;
+    resOld.vMap   = resNew.vMap;
+    res = resOld;
+    return;
+end
 
     % when pVessel.S.lumen and pVessel.S.surround are empty, they are determined from the relaxation and acquisition parameters
     % when pVessel.profile is numeric, it is used as the velocity profile -- this allows to specify and arbitrary velocity distribution within the whole ROI (not the center voxel). Must be of length pSim.nSpin.
@@ -160,6 +171,7 @@ end
 
 % Simulate with vessel centered on center voxel
 [res.magMap,res.vMap,res.pVessel,res.pSim,res.pMri] = simVesselSpins(pVessel, pSim, pMri);
+if earlyStop; return; end
 
 % Simulate spin map
 m1 = permute(res.pMri.venc.m1List,[3 4 5 6 1 2 7 8 9 10 11 12 13 14 15 16]);
