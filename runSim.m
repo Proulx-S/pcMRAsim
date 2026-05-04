@@ -4,7 +4,7 @@ if ~exist('light'    ,'var') || isempty(light    ); light     = true;  end
 if ~exist('earlyStop','var') || isempty(earlyStop); earlyStop = false; end
 
 % Recovery mode: res struct passed as first arg — re-run simVesselSpins to restore magMap/vMap
-if isstruct(pVessel) && isfield(pVessel, 'pVessel')
+if nargin~=0 && isstruct(pVessel) && isfield(pVessel, 'pVessel')
     resOld  = pVessel;
     resNew  = runSim(resOld.pVessel, resOld.pSim, resOld.pMri, verbose, light, true);
     resOld.magMap = resNew.magMap;
