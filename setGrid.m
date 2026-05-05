@@ -1,46 +1,74 @@
-% function [gridFE, gridPE, gridVoxIdx, dFE, dPE, nSpin] = setGrid(voxSzFE, voxSzPE, matFE, matPE, nSpin)
-function [gridFE, gridPE, gridVoxIdx, dFE, dPE, nSpin] = setGrid(fovFE, fovPE, matFE, matPE, nSpin)
+% function [voxGrid, spinGrid, nSpinPerVox] = setGrid(fovFE, fovPE, matFE, matPE, nSpin, mode)
+function [voxGrid, spinGrid, nSpinPerVox] = setGrid(fovFE, fovPE, matFE, matPE, nSpin, mode)
 % INPUTS
-%  fovFE:  field of view in FE direction [mm]
-%  fovPE:  field of view in PE direction [mm]
-%  matFE:  matrix size in FE direction [voxels]
-%  matPE:  matrix size in PE direction [voxels]
-%  nSpin  :  desired approximate number of spins per voxel [n]
+%  fovFE, fovPE : field of view [mm]
+%  matFE, matPE : number of voxels
+%  nSpin        : target total spin count [n]
+%  mode         : 'pseudoVoxel' (default) | 'centerVox'
 % OUTPUTS
-%  gridFE    :  FE grid coordinates [mm]
-%  gridPE    :  PE grid coordinates [mm]
-%  gridVoxIdx:  voxel indices of spins with idx=0 for center voxel
-%  dFE       :  spin spacing in FE direction [mm]
-%  dPE       :  spin spacing in PE direction [mm]
-%  nSpin     :  actual number of spins in a voxel [n]
+%  voxGrid     — voxel grid (one entry per voxel)
+%    .fovFE, .fovPE   [mm]     total FOV
+%    .matFE, .matPE   [—]      number of voxels
+%    .dFE,   .dPE     [mm]     voxel size
+%    .coorFE, .coorPE [mm]     1D voxel-center coordinate vectors
+%  spinGrid    — spin grid (one entry per spin total)
+%    .fovFE, .fovPE   [mm]     total FOV  (same as voxGrid)
+%    .matFE, .matPE   [—]      total spins in each direction (nSpinPerVox * voxGrid.mat)
+%    .dFE,   .dPE     [mm]     spin spacing
+%    .coorFE, .coorPE [mm]     1D spin coordinate vectors (full grid)
+%  nSpinPerVox [n]             spins per voxel
+%
+% Recoverable quantities (not stored):
+%   nSpin total                = spinGrid.matFE * spinGrid.matPE
+%   voxel boundaries FE        = voxGrid.coorFE +/- voxGrid.dFE/2
+%   spin-to-voxel map          = getVoxIdx(voxGrid, spinGrid)
+%   2D spin coord grids        : [spinGridFE,spinGridPE] = ndgrid(spinGrid.coorFE, spinGrid.coorPE)  [dim1=FE, dim2=PE]
+%   2D spin radial coord grids : voxGridR = sqrt(voxGridFE.^2+voxGridPE.^2);  [dim1=FE, dim2=PE]
 
+if ~exist('mode','var') || isempty(mode); mode = 'pseudoVoxel'; end
 
-% odd number of spins in each directions in a voxel
-voxSzFE = fovFE/matFE;
-voxSzPE = fovPE/matPE;
-voxAspectRatio = voxSzFE/voxSzPE;
-nSpinFE = round(sqrt(nSpin*voxAspectRatio));
-nSpinPE = round(sqrt(nSpin*voxAspectRatio));
-nSpinFE = nSpinFE + mod(nSpinFE+1,2);
-nSpinPE = nSpinPE + mod(nSpinPE+1,2);
-% spin spacing in each directions
-dFE     = voxSzFE/nSpinFE;
-dPE     = voxSzPE/nSpinPE;
-% number of spins in a voxel
-nSpin   = nSpinFE * nSpinPE;
+if strcmp(mode,'centerVox')
+    assert(mod(matFE,2)==1 && mod(matPE,2)==1, 'centerVox mode requires odd matFE and matPE');
+end
 
-% spin cartesian coordinates relative to center of center voxel
-gridFE = linspace(-fovFE/2+dFE/2, fovFE/2-dFE/2, nSpinFE);
-gridPE = linspace(-fovPE/2+dPE/2, fovPE/2-dPE/2, nSpinPE);
-[gridFE, gridPE] = meshgrid(gridFE, gridPE);
+% Voxel size [mm]
+voxSzFE   = fovFE / matFE;    % [mm]
+voxSzPE   = fovPE / matPE;    % [mm]
+fovAspect = fovFE / fovPE;    % [—]
 
-% voxel indices of spins: matrix same size as gridR, one index per voxel
-iFE = round(gridFE/voxSzFE + (matFE+1)/2);
-iPE = round(gridPE/voxSzPE + (matPE+1)/2);
-iFE = max(1, min(matFE, iFE));
-iPE = max(1, min(matPE, iPE));
-gridVoxIdx = sub2ind([matFE, matPE], iFE, iPE);
-% make center voxel index 0
-idx0 = gridVoxIdx(round(end/2),round(end/2));
-gridVoxIdx(gridVoxIdx==idx0) = 0;
-gridVoxIdx(gridVoxIdx> idx0) = gridVoxIdx(gridVoxIdx> idx0)-1;
+% Odd number of spins per voxel in each direction, preserving FOV aspect ratio
+% (equal physical spin spacing: dFE ≈ dPE ≈ sqrt(fovFE*fovPE/nSpin) [mm])
+nSpinFE = round(sqrt(nSpin * fovAspect) / matFE);
+nSpinFE = nSpinFE + mod(nSpinFE+1, 2);  % make odd
+nSpinPE = round(sqrt(nSpin / fovAspect) / matPE);
+nSpinPE = nSpinPE + mod(nSpinPE+1, 2);  % make odd
+
+% Spin spacing [mm]
+dFE = voxSzFE / nSpinFE;    % [mm]
+dPE = voxSzPE / nSpinPE;    % [mm]
+
+% Total spins per direction
+nTotalFE = nSpinFE * matFE;
+nTotalPE = nSpinPE * matPE;
+
+% Voxel grid
+voxGrid.fovFE  = fovFE;
+voxGrid.fovPE  = fovPE;
+voxGrid.matFE  = matFE;
+voxGrid.matPE  = matPE;
+voxGrid.dFE    = voxSzFE;    % [mm]
+voxGrid.dPE    = voxSzPE;    % [mm]
+voxGrid.coorFE = (-(matFE-1)/2 : (matFE-1)/2) * voxSzFE;  % [mm]  1 x matFE
+voxGrid.coorPE = (-(matPE-1)/2 : (matPE-1)/2) * voxSzPE;  % [mm]  1 x matPE
+
+% Spin grid  (fovFE = matFE * dFE holds for both grids by construction)
+spinGrid.fovFE  = fovFE;
+spinGrid.fovPE  = fovPE;
+spinGrid.matFE  = nTotalFE;
+spinGrid.matPE  = nTotalPE;
+spinGrid.dFE    = dFE;        % [mm]
+spinGrid.dPE    = dPE;        % [mm]
+spinGrid.coorFE = (-(nTotalFE-1)/2 : (nTotalFE-1)/2) * dFE;  % [mm]  1 x nTotalFE
+spinGrid.coorPE = (-(nTotalPE-1)/2 : (nTotalPE-1)/2) * dPE;  % [mm]  1 x nTotalPE
+
+nSpinPerVox = nSpinFE * nSpinPE;  % spins per voxel

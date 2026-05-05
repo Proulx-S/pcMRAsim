@@ -3,7 +3,8 @@ if ~exist('posFE','var') || isempty(posFE); posFE = 0; end
 if ~exist('posPE','var') || isempty(posPE); posPE = 0; end
 
 % Define radial coordinates (relative to vessel center)
-rGrid = sqrt((pSim.gridFE-posFE).^2 + (pSim.gridPE-posPE).^2);
+[gridFE, gridPE] = ndgrid(pSim.spinGrid.coorFE, pSim.spinGrid.coorPE);  % dim1=FE, dim2=PE
+rGrid = sqrt((gridFE - posFE).^2 + (gridPE - posPE).^2);
 
 % Define compartments masks
 % if ~isfield(pVessel,'mask'); pVessel.mask = struct('lumen',[],'wall',[],'surround',[]); end
@@ -12,6 +13,8 @@ rGrid = sqrt((pSim.gridFE-posFE).^2 + (pSim.gridPE-posPE).^2);
     pVessel.mask.wall       = rGrid> (pVessel.ID/2) & rGrid<=(pVessel.ID/2+pVessel.WT); % vessel wall
     pVessel.mask.surround   = rGrid> (pVessel.ID/2+pVessel.WT);                         % static surround
 % end
+assert(all(pVessel.mask.lumen(:) + pVessel.mask.wall(:) + pVessel.mask.surround(:) == 1), ...
+    'pVessel.mask: lumen, wall, surround must be non-overlapping and cover all spins');
 
 % Define spin velocity map
 if ischar(pVessel.profile)
@@ -50,20 +53,23 @@ if isempty(pVessel.S.lumen)
     end
 end
 % vessel surround (static)
-Mxy = getMxy_ss(getMz_ss(pMri,pMri.relax.GM),pMri,pMri.relax.GM);
-pVessel.S.surround = Mxy;
+if isempty(pVessel.S.surround)
+    pVessel.S.surround = getMxy_ss(getMz_ss(pMri,pMri.relax.GM),pMri,pMri.relax.GM);
+end
 % map signal magnitude
 magMap = zeros(size(rGrid));
 magMap(pVessel.mask.lumen)    = pVessel.S.lumen;
+magMap(pVessel.mask.wall)     = pVessel.S.wall;
 magMap(pVessel.mask.surround) = pVessel.S.surround;
-magMap = magMap./pSim.nSpin; % divide by the number of spins a voxel, so summing the spins gives the measured signal in a voxel
+nSpinPerVox = pSim.nSpinPerVox;
+magMap = magMap ./ nSpinPerVox; % divide so summing spins in center voxel gives the measured signal
 
 
 % Precompute montecarlo tessalation
 if pSim.monteCarloN > 0 && (~isfield(pSim,'monteCarloShiftFE') || ~isfield(pSim,'monteCarloShiftPE') || isempty(pSim.monteCarloShiftFE) || isempty(pSim.monteCarloShiftPE))
-    nSpinFE = max(sum(pSim.gridVoxIdx==0,2));
+    nSpinFE = pSim.spinGrid.matFE / pSim.voxGrid.matFE;  % spins per voxel in FE
     shiftFE = (1:nSpinFE)-nSpinFE/2-0.5;
-    nSpinPE = max(sum(pSim.gridVoxIdx==0,1));
+    nSpinPE = pSim.spinGrid.matPE / pSim.voxGrid.matPE;  % spins per voxel in PE
     shiftPE = (1:nSpinPE)-nSpinPE/2-0.5;
     % find all possible combination of FE and PE shifts
     [idx1, idx2] = ndgrid(1:length(shiftFE), 1:length(shiftPE));

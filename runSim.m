@@ -14,7 +14,7 @@ if nargin~=0 && isstruct(pVessel) && isfield(pVessel, 'pVessel')
 end
 
     % when pVessel.S.lumen and pVessel.S.surround are empty, they are determined from the relaxation and acquisition parameters
-    % when pVessel.profile is numeric, it is used as the velocity profile -- this allows to specify and arbitrary velocity distribution within the whole ROI (not the center voxel). Must be of length pSim.nSpin.
+    % when pVessel.profile is numeric, it is used as the velocity profile -- this allows to specify and arbitrary velocity distribution within the whole ROI (not the center voxel). Must be of length pSim.spinGrid.matFE*pSim.spinGrid.matPE.
 
 %% Default parameters
 % Vessel simulation parameters
@@ -34,13 +34,15 @@ if ~exist('pVessel','var') || isempty(pVessel)
 end
 % Spin simulation parameters
 if ~exist('pSim','var') || isempty(pSim)
-    pSim.fovFE       = 3;          % [mm]     field of view in FE direction
-    pSim.fovPE       = pSim.fovFE; % [mm]     field of view in PE direction
-    pSim.matFE       = 3;          % [voxels] matrix size in FE direction (must be odd)
-    pSim.matPE       = pSim.matFE; % [voxels] matrix size in PE direction (must be odd)
-    pSim.nSpin       = (2^8+1)^2;    % [n] spins per voxel
-    % randomization of vessel position relative to center voxel
-    pSim.monteCarloN = 0;          % [n] number of bootstrap object-to-grid random shifts
+    pSim.voxGrid.fovFE = 3;          % [mm]     field of view in FE direction
+    pSim.voxGrid.fovPE = 3;          % [mm]     field of view in PE direction
+    pSim.voxGrid.matFE = 3;          % [voxels] matrix size in FE direction
+    pSim.voxGrid.matPE = 3;          % [voxels] matrix size in PE direction
+    pSim.nSpin         = (2^8+1)^2;  % [n]      target total spin count across grid
+    pSim.gridMode      = 'pseudoVoxel'; % 'pseudoVoxel' | 'centerVox' (centerVox requires odd matFE/matPE)
+    pSim.posFE         = 0;          % [mm]     vessel center FE offset from grid center
+    pSim.posPE         = 0;          % [mm]     vessel center PE offset from grid center
+    pSim.monteCarloN   = 0;          % [n]      Monte Carlo vessel-position shifts (centerVox only)
 end
 % MR parameters
 if ~exist('pMri','var') || iscell(pMri) || isempty(pMri)
@@ -156,15 +158,18 @@ if isfield(pMri,'fieldStrength') && isfield(pMri,'species')
     end
 end
 
+% Define simulation grid
+if ~isfield(pSim,'gridMode'); pSim.gridMode = 'pseudoVoxel'; end
+if ~isfield(pSim,'posFE');    pSim.posFE    = 0;             end
+if ~isfield(pSim,'posPE');    pSim.posPE    = 0;             end
+[pSim.voxGrid, pSim.spinGrid, pSim.nSpinPerVox] = setGrid(pSim.voxGrid.fovFE, pSim.voxGrid.fovPE, pSim.voxGrid.matFE, pSim.voxGrid.matPE, pSim.nSpin, pSim.gridMode);
+
 if nargin == 0
     res.pVessel = pVessel;
     res.pSim    = pSim;
     res.pMri    = pMri;
     return;
 end
-
-% Define simulation grid
-[pSim.gridFE, pSim.gridPE, pSim.gridVoxIdx, pSim.dFE, pSim.dPE, pSim.nSpin] = setGrid(pSim.fovFE, pSim.fovPE, pSim.matFE, pSim.matPE, pSim.nSpin);
 
 % Define velocity encoding
 switch pMri.venc.method
@@ -183,8 +188,8 @@ switch pMri.venc.method
         error('Invalid velocity encoding method: %s', pMri.venc.method);
 end
 
-% Simulate with vessel centered on center voxel
-[res.magMap,res.vMap,res.pVessel,res.pSim,res.pMri] = simVesselSpins(pVessel, pSim, pMri);
+% Simulate with vessel at specified position (default: center of grid)
+[res.magMap,res.vMap,res.pVessel,res.pSim,res.pMri] = simVesselSpins(pVessel, pSim, pMri, pSim.posFE, pSim.posPE);
 if earlyStop; return; end
 
 % Simulate spin map
@@ -194,34 +199,45 @@ spinMap = permute(res.spinMap,[5 6 7 8 9 10 11 12 13 14 15 16 1 2 3 4]);
 
 
 
-%% Center voxel averaging
-I  = sum(spinMap(:,:,:,:,:,:,:,:,:,:,:,:,res.pSim.gridVoxIdx==0                            ),13); % total signal
-If = sum(spinMap(:,:,:,:,:,:,:,:,:,:,:,:,res.pSim.gridVoxIdx==0 & res.pVessel.mask.lumen   ),13); % lumen signal
-Is = sum(spinMap(:,:,:,:,:,:,:,:,:,:,:,:,res.pSim.gridVoxIdx==0 & res.pVessel.mask.surround),13); % surround signal
-res.I  = permute(I,  [13 14 15 16 1 2 3 4 5 6 7 8 9 10 11 12]);
-res.If = permute(If, [13 14 15 16 1 2 3 4 5 6 7 8 9 10 11 12]);
-res.Is = permute(Is, [13 14 15 16 1 2 3 4 5 6 7 8 9 10 11 12]);
+%% Signal averaging
+% centerVox: sum over center-voxel spins (one voxel)
+% pseudoVoxel: sum over all spins, divide by matFE*matPE → per-voxel equivalent
+% In both modes: I = sum(area_fraction_type * S_type), S = signal from a full voxel of that type
+switch pSim.gridMode
+    case 'centerVox'
+        spinSel  = getVoxIdx(res.pSim.voxGrid, res.pSim.spinGrid) == 0;
+        nVoxNorm = 1;
+    case 'pseudoVoxel'
+        spinSel  = true(res.pSim.spinGrid.matFE, res.pSim.spinGrid.matPE);
+        nVoxNorm = pSim.voxGrid.matFE * pSim.voxGrid.matPE;
+end
+I  = sum(spinMap(:,:,:,:,:,:,:,:,:,:,:,:, spinSel                               ), 13);
+If = sum(spinMap(:,:,:,:,:,:,:,:,:,:,:,:, spinSel & res.pVessel.mask.lumen      ), 13);
+Is = sum(spinMap(:,:,:,:,:,:,:,:,:,:,:,:, spinSel & res.pVessel.mask.surround   ), 13);
+res.I  = permute(I,  [13 14 15 16 1 2 3 4 5 6 7 8 9 10 11 12]) ./ nVoxNorm;
+res.If = permute(If, [13 14 15 16 1 2 3 4 5 6 7 8 9 10 11 12]) ./ nVoxNorm;
+res.Is = permute(Is, [13 14 15 16 1 2 3 4 5 6 7 8 9 10 11 12]) ./ nVoxNorm;
 
 dimList = {'FE' 'PE' 'SL' 't' 'M1' 'M1ref'};
 res.info = strjoin(dimList,' x ');
 
-% Simulate with random position of the vessel center within the center voxel
-%this will use values precomputed from above and just move the vessel around on each monte carlo iteration
-if pSim.monteCarloN > 0
+% Monte Carlo: random vessel positions within center voxel (centerVox mode only)
+if strcmp(pSim.gridMode,'centerVox') && pSim.monteCarloN > 0
 
     res.I  = cat(7,res.I ,nan([size(res.I ,1:6) pSim.monteCarloN]));
     res.If = cat(7,res.If,nan([size(res.If,1:6) pSim.monteCarloN]));
     res.Is = cat(7,res.Is,nan([size(res.Is,1:6) pSim.monteCarloN]));
     res.info = strjoin({res.info 'mntCrls'},' x ');
 
+    voxIdx = getVoxIdx(res.pSim.voxGrid, res.pSim.spinGrid);
     for iMntCrl = 1:pSim.monteCarloN
 
-        % shift the grid voxels by the monte carlo shift, relative to the spin map
-        gridVoxIdx = circshift(res.pSim.gridVoxIdx, [res.pSim.monteCarloShiftFE(iMntCrl) res.pSim.monteCarloShiftPE(iMntCrl)] );
+        % shift the voxel map by the monte carlo shift, relative to the spin map
+        voxIdxShifted = circshift(voxIdx, [res.pSim.monteCarloShiftFE(iMntCrl) res.pSim.monteCarloShiftPE(iMntCrl)]);
 
-        I  = sum(spinMap(:,:,:,:,:,:,:,:,:,:,:,:,gridVoxIdx==0                            ),13); % total signal
-        If = sum(spinMap(:,:,:,:,:,:,:,:,:,:,:,:,gridVoxIdx==0 & res.pVessel.mask.lumen   ),13); % lumen signal
-        Is = sum(spinMap(:,:,:,:,:,:,:,:,:,:,:,:,gridVoxIdx==0 & res.pVessel.mask.surround),13); % surround signal
+        I  = sum(spinMap(:,:,:,:,:,:,:,:,:,:,:,:,voxIdxShifted==0                              ),13); % total signal
+        If = sum(spinMap(:,:,:,:,:,:,:,:,:,:,:,:,voxIdxShifted==0 & res.pVessel.mask.lumen     ),13); % lumen signal
+        Is = sum(spinMap(:,:,:,:,:,:,:,:,:,:,:,:,voxIdxShifted==0 & res.pVessel.mask.surround  ),13); % surround signal
 
         res.I( :,:,:,:,:,:,iMntCrl+1) = permute(I,  [13 14 15 16 1 2 3 4 5 6 7 8 9 10 11 12]);
         res.If(:,:,:,:,:,:,iMntCrl+1) = permute(If, [13 14 15 16 1 2 3 4 5 6 7 8 9 10 11 12]);
@@ -257,6 +273,7 @@ end
 res.pVessel.S.lumen    = single(res.pVessel.S.lumen   );
 res.pVessel.S.wall     = single(res.pVessel.S.wall    );
 res.pVessel.S.surround = single(res.pVessel.S.surround);
-res.pSim.gridFE     = single(res.pSim.gridFE   );
-res.pSim.gridPE     = single(res.pSim.gridPE   );
-res.pSim.gridVoxIdx = uint8(res.pSim.gridVoxIdx);
+res.pSim.spinGrid.coorFE = single(res.pSim.spinGrid.coorFE);
+res.pSim.spinGrid.coorPE = single(res.pSim.spinGrid.coorPE);
+res.pSim.voxGrid.coorFE  = single(res.pSim.voxGrid.coorFE);
+res.pSim.voxGrid.coorPE  = single(res.pSim.voxGrid.coorPE);
