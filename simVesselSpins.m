@@ -1,10 +1,8 @@
-function [magMap,vMap,pVessel,pSim,pMri] = simVesselSpins(pVessel, pSim, pMri, posFE, posPE)
-if ~exist('posFE','var') || isempty(posFE); posFE = 0; end
-if ~exist('posPE','var') || isempty(posPE); posPE = 0; end
+function [magMap,vMap,pVessel,pSim,pMri] = simVesselSpins(pVessel, pSim, pMri)
 
 % Define radial coordinates (relative to vessel center)
 [gridFE, gridPE] = ndgrid(pSim.spinGrid.coorFE, pSim.spinGrid.coorPE);  % dim1=FE, dim2=PE
-rGrid = sqrt((gridFE - posFE).^2 + (gridPE - posPE).^2);
+rGrid = sqrt((gridFE - pVessel.posFE).^2 + (gridPE - pVessel.posPE).^2);
 
 % Define compartments masks
 % if ~isfield(pVessel,'mask'); pVessel.mask = struct('lumen',[],'wall',[],'surround',[]); end
@@ -56,13 +54,11 @@ end
 if isempty(pVessel.S.surround)
     pVessel.S.surround = getMxy_ss(getMz_ss(pMri,pMri.relax.GM),pMri,pMri.relax.GM);
 end
-% map signal magnitude
+% map signal magnitude (divide by nSpinPerVox so summing spins within voxels gives S, the hypothetical measured signal if the voxel was single-compartment)
 magMap = zeros(size(rGrid));
-magMap(pVessel.mask.lumen)    = pVessel.S.lumen;
-magMap(pVessel.mask.wall)     = pVessel.S.wall;
-magMap(pVessel.mask.surround) = pVessel.S.surround;
-nSpinPerVox = pSim.nSpinPerVox;
-magMap = magMap ./ nSpinPerVox; % divide so summing spins in center voxel gives the measured signal
+magMap(pVessel.mask.lumen)    = pVessel.S.lumen    ./pSim.nSpinPerVox;
+magMap(pVessel.mask.wall)     = pVessel.S.wall     ./pSim.nSpinPerVox;
+magMap(pVessel.mask.surround) = pVessel.S.surround ./pSim.nSpinPerVox;
 
 
 % Precompute montecarlo tessalation
