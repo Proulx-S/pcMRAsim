@@ -55,7 +55,7 @@ if ~exist('pMri','var') || iscell(pMri) || isempty(pMri)
         clear pMri;
     else
         fieldStrength = '7t';
-        vencMethod    = 'FVEbipo';
+        vencMethod    = 'FVEmono';
     end
     switch lower(fieldStrength)
         case '7t'
