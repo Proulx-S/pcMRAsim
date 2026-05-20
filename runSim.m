@@ -150,6 +150,11 @@ if isfield(pMri,'fieldStrength') && isfield(pMri,'species')
                     pMri.relax.blood.T2star = 0.25; % [s] TODO: use truer values
                     pMri.relax.GM.T1        = 1.10; % [s] TODO: use truer values
                     pMri.relax.GM.T2star    = 0.05; % [s] TODO: use truer values
+                case 'human'
+                    pMri.relax.blood.T1     = 1.66  ; % [s]   Dobre et al., MRM 2007
+                    pMri.relax.blood.T2star = 50e-3 ; % [s]   arterial, oxygenation-dependent
+                    pMri.relax.GM.T1        = 1.30  ; % [s]   3T cortical GM
+                    pMri.relax.GM.T2star    = 30e-3 ; % [s]   3T cortical GM
                 otherwise
                     error('Invalid species: %s', pMri.species);
             end
