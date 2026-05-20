@@ -4,13 +4,25 @@ function [magMap,vMap,pVessel,pSim,pMri] = simVesselSpins(pVessel, pSim, pMri)
 [gridFE, gridPE] = ndgrid(pSim.spinGrid.coorFE, pSim.spinGrid.coorPE);  % dim1=FE, dim2=PE
 rGrid = sqrt((gridFE - pVessel.posFE).^2 + (gridPE - pVessel.posPE).^2);
 
-% Define compartments masks
-% if ~isfield(pVessel,'mask'); pVessel.mask = struct('lumen',[],'wall',[],'surround',[]); end
-% if isempty(pVessel.mask.lumen) || isempty(pVessel.mask.wall) || isempty(pVessel.mask.surround)
-    pVessel.mask.lumen      = rGrid<=(pVessel.ID/2);                                    % vessel lumen
-    pVessel.mask.wall       = rGrid> (pVessel.ID/2) & rGrid<=(pVessel.ID/2+pVessel.WT); % vessel wall
-    pVessel.mask.surround   = rGrid> (pVessel.ID/2+pVessel.WT);                         % static surround
-% end
+% Define compartment masks
+% Elliptical vessel if pVessel.AR and pVessel.alpha are provided; circular otherwise.
+R_lumen = pVessel.ID / 2;  % semi-major axis [mm]
+if isfield(pVessel,'AR') && ~isempty(pVessel.AR) && pVessel.AR ~= 1
+    alpha_v = pVessel.alpha;
+    AR_v    = pVessel.AR;
+    dFE = gridFE - pVessel.posFE;
+    dPE = gridPE - pVessel.posPE;
+    u   =  dPE.*cos(alpha_v) + dFE.*sin(alpha_v);   % along major axis
+    w   = -dPE.*sin(alpha_v) + dFE.*cos(alpha_v);   % along minor axis
+    ellipseDist = sqrt(u.^2 + (AR_v .* w).^2);      % = R_lumen at ellipse boundary
+    pVessel.mask.lumen    = ellipseDist <= R_lumen;
+    pVessel.mask.wall     = ellipseDist >  R_lumen & ellipseDist <= R_lumen + pVessel.WT;
+    pVessel.mask.surround = ~pVessel.mask.lumen & ~pVessel.mask.wall;
+else
+    pVessel.mask.lumen    = rGrid <= R_lumen;
+    pVessel.mask.wall     = rGrid >  R_lumen & rGrid <= R_lumen + pVessel.WT;
+    pVessel.mask.surround = rGrid >  R_lumen + pVessel.WT;
+end
 assert(all(pVessel.mask.lumen(:) + pVessel.mask.wall(:) + pVessel.mask.surround(:) == 1), ...
     'pVessel.mask: lumen, wall, surround must be non-overlapping and cover all spins');
 

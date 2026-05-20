@@ -205,21 +205,37 @@ spinMap = permute(res.spinMap,[5 6 7 8 9 10 11 12 13 14 15 16 1 2 3 4]);
 
 
 %% Signal averaging
-% centerVox: sum over center-voxel spins (one voxel)
+% centerVox:   sum over center-voxel spins (one voxel)
 % pseudoVoxel: sum over all spins, divide by matFE*matPE → per-voxel equivalent
-% In both modes: I = sum(area_fraction_type * S_type), S = signal from a full voxel of that type
-switch pSim.gridMode
-    case 'centerVox'
-        spinSel  = getVoxIdx(res.pSim.voxGrid, res.pSim.spinGrid) == 0;
-    case 'pseudoVoxel'
-        spinSel  = true(res.pSim.spinGrid.matFE, res.pSim.spinGrid.matPE);
+% allVoxels:   sum spins within each voxel → full (matFE × matPE) image per M1
+% In all modes: I = sum(area_fraction_type * S_type), S = signal from a full voxel of that type
+if strcmp(pSim.gridMode, 'allVoxels')
+    % res.spinMap: (nSpinFE, nSpinPE, 1, 1, nM1, nM1ref)
+    % setGrid guarantees spinGrid.mat = nSpinsPerVox * voxGrid.mat, so reshape is exact.
+    nSpFE  = res.pSim.spinGrid.matFE;  nSpPE  = res.pSim.spinGrid.matPE;
+    nVxFE  = res.pSim.voxGrid.matFE;   nVxPE  = res.pSim.voxGrid.matPE;
+    sFE    = nSpFE / nVxFE;             sPE    = nSpPE / nVxPE;
+    nM1    = size(res.spinMap, 5);       nM1ref = size(res.spinMap, 6);
+    % Reshape spin dims (1,2) into (nVxFE, sFE, nVxPE, sPE) then sum within each voxel
+    sm     = reshape(res.spinMap, [nVxFE, sFE, nVxPE, sPE, 1, 1, nM1, nM1ref]);
+    I_vx   = sum(sum(sm, 2), 4);         % (nVxFE, 1, nVxPE, 1, 1, 1, nM1, nM1ref)
+    res.I  = reshape(I_vx, [nVxFE, nVxPE, 1, 1, nM1, nM1ref]);  % (FE, PE, SL, t, M1, M1ref)
+    res.If = res.I;   % lumen-only not separated in this mode
+    res.Is = res.I;
+else
+    switch pSim.gridMode
+        case 'centerVox'
+            spinSel  = getVoxIdx(res.pSim.voxGrid, res.pSim.spinGrid) == 0;
+        case 'pseudoVoxel'
+            spinSel  = true(res.pSim.spinGrid.matFE, res.pSim.spinGrid.matPE);
+    end
+    I  = sum(spinMap(:,:,:,:,:,:,:,:,:,:,:,:, spinSel                               ), 13);
+    If = sum(spinMap(:,:,:,:,:,:,:,:,:,:,:,:, spinSel & res.pVessel.mask.lumen      ), 13);
+    Is = sum(spinMap(:,:,:,:,:,:,:,:,:,:,:,:, spinSel & res.pVessel.mask.surround   ), 13);
+    res.I  = permute(I,  [13 14 15 16 1 2 3 4 5 6 7 8 9 10 11 12]);
+    res.If = permute(If, [13 14 15 16 1 2 3 4 5 6 7 8 9 10 11 12]);
+    res.Is = permute(Is, [13 14 15 16 1 2 3 4 5 6 7 8 9 10 11 12]);
 end
-I  = sum(spinMap(:,:,:,:,:,:,:,:,:,:,:,:, spinSel                               ), 13);
-If = sum(spinMap(:,:,:,:,:,:,:,:,:,:,:,:, spinSel & res.pVessel.mask.lumen      ), 13);
-Is = sum(spinMap(:,:,:,:,:,:,:,:,:,:,:,:, spinSel & res.pVessel.mask.surround   ), 13);
-res.I  = permute(I,  [13 14 15 16 1 2 3 4 5 6 7 8 9 10 11 12]);
-res.If = permute(If, [13 14 15 16 1 2 3 4 5 6 7 8 9 10 11 12]);
-res.Is = permute(Is, [13 14 15 16 1 2 3 4 5 6 7 8 9 10 11 12]);
 
 dimList = {'FE' 'PE' 'SL' 't' 'M1' 'M1ref'};
 res.info = strjoin(dimList,' x ');
