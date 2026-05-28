@@ -119,22 +119,118 @@ if ~exist('pMri','var') || iscell(pMri) || isempty(pMri)
         case 14
             switch pMri.species
                 case 'mouse'
-                    pMri.relax.blood.T1     = 2.7  ; % [s]
-                    pMri.relax.blood.T2star = 10e-3; % [s]
-                    pMri.relax.GM.T1        = 2.3  ; % [s]
-                    pMri.relax.GM.T2star    = 15e-3; % [s]
+                    % pMri.relax.blood.T1     = 2.7  ; % [s]  new value = 2.900s
+                    % pMri.relax.blood.T2star = 10e-3; % [s]  new value = 0.005s
+                    % pMri.relax.GM.T1        = 2.3  ; % [s]  new value = 2.100s
+                    % pMri.relax.GM.T2star    = 15e-3; % [s]
+
+                    % just take it from Bates et al. 2023 (doi:10.1007/s10334-023-01081-3)
+                    pMri.relax.blood.T1     = 3   ; % [s]
+                    pMri.relax.blood.T2star = 5e-3; % [s]  venous T2 = 6ms, here we eyeball a shorter T2* midway between venous and arterial
+                    pMri.relax.GM.T1        = 2.3  ; % [s]  
+                    pMri.relax.GM.T2star    = 16e-3; % [s]
+
+
+
                 otherwise
                     error('Invalid species: %s', pMri.species);
             end
             % Mouse at 14T: no direct measurement. Linear field dependence (Dobre et al., Magn Reson Imag 25(5):733–735, 2007):
             %   T1(ms) = 129*B0 + 1167 (1.5–9.4 T); extrapolation at 14T → 2.97 s. Reduced for higher mouse Hct (~0.48) vs human → ~2.7 s.
             %   Using 2.7 s as nominal mouse blood T1 at 14T.
-            % Mouse at 14T: no direct 14T. Cortical (isocortex) at 11.7T ~2.04 s reported in vivo (e.g. wildtype mouse at 11.7T).
+            % Mouse at 14T: no direct 14T. Cortical (isocortex) at 11.7T ~2.04 s in vivo (Kumar et al., NMR Biomed 39(1):e70187, 2026, doi:10.1002/nbm.70187).
             %   T1 increases with B0; extrapolation 11.7T→14T → ~2.3 s. Using 2.3 s as nominal mouse cortical GM T1 at 14T.
             % Mouse at 14T: venous T2 (not T2*) at 11.7T 26.9±1.7 ms normoxia (Wei et al., MRM 80:521–528, 2018, doi:10.1002/mrm.27046).
             %   T2* < T2 due to susceptibility; T2* shortens with B0. Estimate venous T2* at 14T ~10 ms.
             % Mouse at 14T: no direct 14T. R2* increases ~linearly with B0; at 17.6T mouse brain T2* measured (Kara et al., MRM 70:985–993, 2013).
             %   Extrapolation 7T→14T: T2* scales roughly as 1/B0 → cortical GM at 14T ~15 ms. Using 15 ms as nominal.
+
+
+            
+            if 0
+            % --------BLOOD T1--------
+            HctA = median([0.45 0.42 0.41 0.43 0.43 0.53]); % 0.43 (from Dobre)
+            HctB = 0.48; %(for mouse)
+            % ----doi:10.1002/mrm.20178
+            % --arterial: ~69ms difference
+            R1a=0.52.*HctA+0.38;
+            R1b=0.52.*HctB+0.38;
+            1/R1a-1/R1b
+            % --venous: ~96ms difference
+            R1a=0.83.*HctA+0.28;
+            R1b=0.83.*HctB+0.28;
+            (1/R1a-1/R1b)
+            % ----doi:10.1002/mrm.24547
+            % --arterial: ~85ms difference
+            R1a = (0.305+0.201*HctA) / (0.95-0.25*HctA);
+            R1b = (0.305+0.201*HctB) / (0.95-0.25*HctB);
+            (1/R1a-1/R1b)
+            % --venous: ~91ms difference
+            R1a = (0.305+0.275*HctA) / (0.95-0.25*HctA);
+            R1b = (0.305+0.275*HctB) / (0.95-0.25*HctB);
+            (1/R1a-1/R1b)
+            end
+
+            
+            
+            if 0
+            % --------BLOOD T2--------
+            B0=[1.5	1.5	1.5	1.5	1.5	1.5	1.5	1.5	3	3	3	3	3	3	3	3	3	7	7	1.5	1.5	1.5	1.5	1.5	1.5	1.5	1.5	1.5	1.5	1.5	1.5	2.35	3	3	3	3	3	3	4.7	4.7	4.7	4.7	7	7	7	7]; %T
+            T2=[172	131	209	114	172	242	190	253	61.9	68.4	155	169	72.4	67.7	80.1	60.9	80.3	19.5	27.4	212	201	159	142	131	98.1	88.6	86.9	156	145	174	245	98.9	84	72.4	66.7	63.2	72.4	63.2	12.2	110	51.5	9.1	19.4	27	24.1	22]; %ms
+            [B0,b] = sort(B0);
+            T2 = T2(b);
+            censorIdx = 1./T2>0.06;
+            figure
+            plot(B0(~censorIdx),T2(~censorIdx),'o','MarkerEdgeColor','k','MarkerFaceColor','w'); hold on;
+            plot(B0(censorIdx),T2(censorIdx),'o','MarkerEdgeColor','k','MarkerFaceColor','r');
+            fT2b     = fit(B0(:),1./T2(:),fittype('p1*x+p2*x^2','coefficients',{'p1','p2'}));
+            fT2b_cen = fit(B0(~censorIdx)',1./T2(~censorIdx)',fittype('p1*x+p2*x^2','coefficients',{'p1','p2'}));
+            B0fit = linspace(0,14,200);
+            plot(B0fit,1./fT2b(B0fit),'r-');
+            plot(B0fit,1./fT2b_cen(B0fit),'w-');
+            plot(14,1./fT2b(14),'rx','MarkerSize',10,'LineWidth',2);
+            plot(14,1./fT2b_cen(14),'wx','MarkerSize',10,'LineWidth',2);
+            xline(14,'w--');
+            plot(11.7,32.3,'cx','MarkerSize',10,'LineWidth',2);
+            grid on
+            legend('data','censored data','fit','fit after censoring',sprintf('fit @14T: T2=%.1f ms',1/fT2b(14)),sprintf('censored @14T: T2=%.1f ms',1/fT2b_cen(14)),'B0 = 14T',sprintf('Wei et al. 2018: T2=%.1f ms',32.3),'Location','northeast');
+            end
+
+
+
+            if 0
+            % --------GM T1--------
+            B0=[0.5	1.5	1.5	1.5	1.5	2	2	3	3	4	4	4	7	7	9.4	9.4	1.5	2	4	4	4	4	4	4.7	7	9.4	9.4	9.4	9.4	9.4	11.7	11.7	11.7	11.7	17.2	17.6]; %T
+            T1=[650	1050	1100	1175	1200	1200	1250	1500	1550	1250	1300	1325	1875	1900	1875	1950	1000	1200	875	950	1050	1250	1300	1600	1600	1575	1800	1850	2125	2150	1575	1600	1850	2050	2600	2000]; %ms
+            kumarB0 = 11.7;
+            kumarT1 = 2036;
+            [B0,b] = sort(B0);
+            T1 = T1(b);
+            fVen = fit(B0(:),T1(:),fittype('p1*x^p2','coefficients',{'p1','p2'}));
+            fRooney = fVen; fRooney.p1 = 0.857*1000; fRooney.p2 = 0.376;
+            fVenAdjKumar = fVen; fVenAdjKumar.p1 = fVen.p1 * kumarT1/fVen(kumarB0);
+            B0fit  = linspace(0,max(B0),200);
+            B0fit2 = linspace(kumarB0,14,10);
+            figure;
+            plot(B0,T1,'o','MarkerEdgeColor','k','MarkerFaceColor','w'); hold on;
+            plot(B0fit,fRooney(B0fit),'r-');
+            plot(B0fit,fVen(B0fit),'w-');
+            % plot(kumarB0,kumarT1,'cx','MarkerSize',10,'LineWidth',2);
+            plot(B0fit2,fVenAdjKumar(B0fit2),'c-');
+            T1_Rooney14 = fRooney(14); T1_Ven14 = fVen(14); T1_KumarAdj14 = fVenAdjKumar(14);
+            xline(14,'w--');
+            yline(T1_Rooney14,'r--');
+            yline(T1_Ven14,'w--');
+            plot(kumarB0,kumarT1,'cx','MarkerSize',10,'LineWidth',2);
+            plot(14,T1_KumarAdj14,'cx','MarkerSize',10,'LineWidth',2);
+            grid on; axis square;
+            ylabel('T1 [ms]'); legend('data','Rooney  et al. 2007 model','van de Ven et al. 2007 fit','Kumar adjusted van de Ven fit',sprintf('B0 = 14T'),sprintf('Rooney T1: %.0f ms',T1_Rooney14),sprintf('van de Ven T1: %.0f ms',T1_Ven14),sprintf('Kumar et al. 2026: %.0f ms @%.1fT',kumarT1,kumarB0),sprintf('Kumar adj. @14T: %.0f ms',T1_KumarAdj14),'Location','southeast');
+            end
+
+            
+            
+
+
         otherwise
             error('Invalid field strength: %s', pMri.fieldStrength);
     end
