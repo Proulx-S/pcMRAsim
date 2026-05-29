@@ -119,13 +119,13 @@ if ~exist('pMri','var') || iscell(pMri) || isempty(pMri)
         case 14
             switch pMri.species
                 case 'mouse'
-                    % pMri.relax.blood.T1     = 2.7  ; % [s]  new value = 2.900s
+                    pMri.relax.blood.T1     = 2.7  ; % [s]  new value = 2.900s
                     % pMri.relax.blood.T2star = 10e-3; % [s]  new value = 0.005s
                     % pMri.relax.GM.T1        = 2.3  ; % [s]  new value = 2.100s
                     % pMri.relax.GM.T2star    = 15e-3; % [s]
 
                     % just take it from Bates et al. 2023 (doi:10.1007/s10334-023-01081-3)
-                    pMri.relax.blood.T1     = 3   ; % [s]
+                    % pMri.relax.blood.T1     = 3   ; % [s]
                     pMri.relax.blood.T2star = 5e-3; % [s]  venous T2 = 6ms, here we eyeball a shorter T2* midway between venous and arterial
                     pMri.relax.GM.T1        = 2.3  ; % [s]  
                     pMri.relax.GM.T2star    = 16e-3; % [s]
