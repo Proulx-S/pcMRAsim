@@ -40,7 +40,7 @@ end
 if ~exist('pSim','var') || isempty(pSim)
     pSim.voxGrid.fovFE    = 3;          % [mm]     field of view in FE  direction
     pSim.voxGrid.fovPE    = 3;          % [mm]     field of view in PE  direction
-    pSim.voxGrid.fovSLC   = 2;          % [mm]     field of view in SLC direction
+    pSim.voxGrid.fovSLC   = 1;          % [mm]     field of view in SLC direction (= the excited slab: must equal pMri.sliceThickness when matSLC = 1)
     pSim.voxGrid.matFE    = 3;          % [voxels] matrix size in FE  direction
     pSim.voxGrid.matPE    = 3;          % [voxels] matrix size in PE  direction
     pSim.voxGrid.matSLC   = 1;          % [voxels] matrix size in SLC direction
