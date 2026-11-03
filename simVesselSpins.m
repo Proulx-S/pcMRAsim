@@ -29,30 +29,46 @@ vMap = zeros(size(gridR));
 vMap(lumenMask) = Vmax .* max(0, (1 - (gridR(lumenMask)./(pVessel.ID/2)).^2) );
 
 
-% --- distance from slab along flow path ---
-if Vmax>=0
-    gridD = gridSLC_vessel - gridSLC_vessel(:,:,1);
-else
-    gridD = gridSLC_vessel - gridSLC_vessel(:,:,end);
+% --- RF pulses received: depth into the slab, in units of (through-plane velocity * TR) ---
+% A spin at depth dz below the entry face (fresh M0 blood upstream, rectangular slab) has received
+% floor(dz/(vz*TR)) earlier pulses, vz = v*n_hat(3) the through-plane velocity. Each isochromat
+% stands for a cell of thickness dSLC, so it gets the exact average of Mz over its cell
+% (getMz_n with nWidth): the result no longer depends on the number of planes through the slab.
+% See docs/inflowPulseCount.md.
+if pVessel.n_hat(3) == 0
+    error('simVesselSpins:inPlaneVessel', 'n_hat(3) = 0 (vessel in the slice plane): the through-plane inflow model does not apply.');
 end
-gridD = gridD./pVessel.n_hat(3);
-
-% --- number of RF pulses ---
-gridN = inf(size(vMap));
-gridN(lumenMask) = gridD(lumenMask)/10./vMap(lumenMask)./pMri.TR;
+slabThickness = pSim.spinGrid.fovSLC;                                 % [mm]
+if pSim.voxGrid.matSLC == 1 && isfield(pMri,'sliceThickness') && abs(slabThickness - pMri.sliceThickness) > 1e-9
+    error('simVesselSpins:slabThickness', ['pSim.voxGrid.fovSLC (%g mm) differs from pMri.sliceThickness (%g mm):' newline ...
+        'the inflow model uses fovSLC as the excited slab; make them equal.'], slabThickness, pMri.sliceThickness);
+end
+zLo = pSim.spinGrid.coorSLC(1)   - pSim.spinGrid.dSLC/2;              % slab faces [mm]
+zHi = pSim.spinGrid.coorSLC(end) + pSim.spinGrid.dSLC/2;
+if Vmax*pVessel.n_hat(3) >= 0
+    gridDz = gridSLC - zLo;                                           % enters through the lower face
+else
+    gridDz = zHi - gridSLC;                                           % enters through the upper face
+end
+vz = abs(vMap .* pVessel.n_hat(3));                                   % [cm/s] through-plane speed
+gridN  = inf(size(vMap));                                             % centre of each cell [pulse units]
+gridNw = zeros(size(vMap));                                           % cell thickness     [pulse units]
+moving = lumenMask & vz > 0;
+gridN(moving)  = gridDz(moving)/10 ./ vz(moving) ./ pMri.TR;
+gridNw(moving) = pSim.spinGrid.dSLC/10 ./ vz(moving) ./ pMri.TR;
 
 
 % --- signal magnitude ---
 mMap = zeros(size(gridN));
 % -blood-
-[Mz , pMri] = getMz_n(pMri, pMri.relax.blood, gridN(lumenMask));
+[Mz , pMri] = getMz_n(pMri, pMri.relax.blood, gridN(lumenMask), [], gridNw(lumenMask));
 [mMap(lumenMask), pMri] = getMxy_ss(Mz, pMri, pMri.relax.blood       );
-% -tissue-
+% -tissue- (stationary: steady state with the tissue T1)
 if ~isempty(pVessel.S.surround)
     mMap(tissueMask) = pVessel.S.surround;
     % S_surr = pVessel.S.surround;   % user-specified (e.g. S_tissue from fit)
 else
-    [Mz, pMri] = getMz_n(pMri, pMri.relax.blood, gridN(tissueMask));
+    Mz = getMz_n(pMri, pMri.relax.GM, inf(nnz(tissueMask),1));        % pMri keeps the blood E1/Q1
     [mMap(tissueMask), pMri] = getMxy_ss(Mz, pMri, pMri.relax.GM);
 end
 % -wall-
