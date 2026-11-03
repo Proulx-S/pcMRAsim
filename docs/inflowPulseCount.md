@@ -67,6 +67,16 @@ et al. (2014, eq. 24.9) at integer $v_c/v$, and util `getMz_ss` at any $v$. The 
 only matters for the geometry, i.e. how the radius, and hence $v$, varies through the slab for a
 tilted vessel.
 
+**Provenance.** Two parts come from the literature:
+
+- the per-spin $M_z(m)$ (Brown et al., 2014, eq. 24.5; Kim & Parker, 2012, eq. 2.4);
+- the integer pulse count, with the signal as a volume-weighted sum over populations (sources
+  below).
+
+The cell average $F(x_b)-F(x_a)$ is **derived here** from that model. It is the exact integral of
+the integer count over an isochromat's thickness, and it is not quoted from any source. It is
+validated against a pulse-by-pulse simulation that uses no closed form (§5).
+
 The literature treats slow through-plane inflow the same way: a volume-weighted sum over
 populations with integer pulse counts.
 
