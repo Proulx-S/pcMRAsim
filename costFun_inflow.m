@@ -33,14 +33,28 @@ nz = sqrt(max(0, 1 - nx^2 - ny^2)); % ||||Note for Claude: we should probably re
 % --- inject in sim structure ---
 pVessel.ID         = 2 * R;
 pVessel.WT         = WT;
-pVessel.posFE      = cx_FE;
-pVessel.posPE      = cx_PE;
-pVessel.posSLC     = cx_SLC;
+% Erratum pcMRAsim#4: the simulation reads pVessel.pos and pVessel.vMean. This used to set
+% posFE/posPE/posSLC and Vmax, which nothing reads, so the fit was flat in position and velocity.
+pVessel.pos        = [cx_FE cx_PE cx_SLC];
 pVessel.n_hat      = [nx; ny; nz];
-pVessel.Vmax       = Vmax;
-pVessel.A          = A;
+switch pVessel.profile
+    case 'parabolic1'
+        pVessel.vMean = Vmax/2;          % simVesselSpins: Vmax = 2*vMean
+    otherwise
+        error('costFun_inflow:profile', 'Vmax -> vMean is only defined for profile ''parabolic1'' (got ''%s'').', pVessel.profile);
+end
 pVessel.S.surround = S_tissue;
-pSim.spinGrid.gridNoiseScale = sigma_n;
+% A (theta(8)) and sigma_n (theta(11)) are NOT used by the forward model: no live code reads an
+% amplitude scale (pSim.mriScale is only a default) or a noise scale. Their fitted values are
+% meaningless until the model implements them (pcMRAsim#4).
+persistent warnedInert
+if isempty(warnedInert)
+    warning('costFun_inflow:inertParams', ['theta(8) (A) and theta(11) (sigma_n) do not affect the forward model; ' ...
+        'their fitted values are meaningless (pcMRAsim#4).']);
+    warnedInert = true;
+end
+pVessel.A          = A;                  % kept for the caller's bookkeeping only
+pSim.spinGrid.gridNoiseScale = sigma_n;  % idem
 
 
 sim = runSim(pVessel, pSim, pMri, false, true, false);
