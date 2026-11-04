@@ -1,6 +1,8 @@
 # Inflow in the 3D isochromat model: counting RF pulses per isochromat
 
-> **Erratum (2026-11-03), branch `dev-erratum-inflowCount`.** On `dev-qvfMRI` (13c5890),
+> **Erratum (2026-11-03), on the separate branch `errata` only.** `dev-qvfMRI` and the other
+> existing branches are deliberately left unchanged, so they remain the reproducible default; check
+> out `errata` to get the fix. On `dev-qvfMRI` (13c5890),
 > `simVesselSpins` gave each lumen isochromat $Q_1^{\,n}$ with a continuous pulse count
 > $n = d/(v\,TR)$, with $d$ measured from the first isochromat plane. A spin receives a whole number
 > of pulses, so this is wrong in three ways:
