@@ -1,5 +1,19 @@
 # Inflow in the 3D isochromat model: counting RF pulses per isochromat
 
+> **Erratum (2026-11-03), branch `dev-erratum-inflowCount`.** On `dev-qvfMRI` (13c5890),
+> `simVesselSpins` gave each lumen isochromat $Q_1^{\,n}$ with a continuous pulse count
+> $n = d/(v\,TR)$, with $d$ measured from the first isochromat plane. A spin receives a whole number
+> of pulses, so this is wrong in three ways:
+>
+> - the bulk is too saturated: the excess is scaled by 0.876 at 7 T, 40°;
+> - the slab never refreshes above $v_c$: $0.89\,M_0$ at $v_c$;
+> - the result depends on the plane count: −11 % to +39 % of the inflow excess at the default
+>   9 planes.
+>
+> The fix gives each isochromat the exact average of the integer count over its cell (§3). It also
+> fixes five related defects (§4). Affected branches and callers are in §7, and how this was found
+> in §8.
+
 `simVesselSpins` samples the vessel on a 3D isochromat grid that spans the excited slab. Each
 lumen isochromat gets its own longitudinal magnetization from the number of RF pulses it has
 received since it entered the slab (`getMz_n`). The voxel signal is the sum over its
@@ -39,9 +53,18 @@ $$
 m = \left\lfloor x \right\rfloor, \qquad x = \frac{d_z}{v_z\,TR}
 $$
 
-earlier pulses. Under steady flow this pattern is the same at every pulse. Only the through-plane
-component of the velocity matters (Kim & Parker, 2012): for a tilted vessel, the path length
-along the axis, $d_z/|\hat n_z|$, divided by $v$ gives the same time.
+earlier pulses. Under steady flow this pattern is the same at every pulse.
+
+Only the through-plane component of the velocity matters. For a tilted vessel, the path length
+along the axis, $d_z/|\hat n_z|$, divided by $v$, gives the same transit time $d_z/v_z$. This is
+geometry, and it is how the literature treats it:
+
+- Ashenagar et al. (2025, Discussion) note that the inflow method "measures flow orthogonal to the
+  imaging slice, and can only quantify flow in that direction".
+- Kim & Parker (2012, book chapter) note that the enhancement drops for oblique flow.
+
+No source read states the transit time $TH/(v\cos\theta)$ in these words. The test checks it
+directly: a 30° tilt matches a perpendicular vessel at equal $v\,\hat n_z$ (§5).
 
 ## 3. One isochromat stands for a cell: exact cell average
 
@@ -67,24 +90,21 @@ et al. (2014, eq. 24.9) at integer $v_c/v$, and util `getMz_ss` at any $v$. The 
 only matters for the geometry, i.e. how the radius, and hence $v$, varies through the slab for a
 tilted vessel.
 
-**Provenance.** Two parts come from the literature:
+### Provenance: what comes from the literature and what is derived here
 
-- the per-spin $M_z(m)$ (Brown et al., 2014, eq. 24.5; Kim & Parker, 2012, eq. 2.4);
-- the integer pulse count, with the signal as a volume-weighted sum over populations (sources
-  below).
+| Ingredient | Peer-reviewed journal articles | Textbooks |
+|---|---|---|
+| $M_z$ after $m$ pulses, $M_{ss} + (M_0-M_{ss})Q_1^m$ | Ashenagar et al. (2025, eq. 1, with all inter-pulse intervals equal to $TR$); Bianciardi et al. (2016, eqs. 2.3–2.4) | Brown et al. (2014, eq. 24.5: valid "as long as the spin is affected by exactly $(m-1)$ pulses"); Kim & Parker (2012, eq. 2.4) |
+| The pulse count is a **whole number** that grows with depth into the slab | Bianciardi et al. (2016, after eq. 2.4: the last-entered velocity segment "experienced 1 RF pulse, whereas the first entered segment experienced $v_C/v$ RF pulses"); Ashenagar et al. (2025: "fluid within the first slice can be divided into partitions each having different amounts of excitation", and each ensemble's excitations are tracked to define $n$); Söderström et al. (2026, §2.5: "the number of RF pulses applied to a specific element") | Brown et al. (2014, §24.1.3); Kim & Parker (2012, Fig. 2.1) |
+| Signal = volume-weighted average over populations, partly filled ones included | Gullberg et al. (1988, abstract: "contributions from a finite number of spin populations, with each population signal weighted by the fractional volume of that spin population"); Gao et al. (1996, eq. 2: $\Delta_{(m,i)}$, "the volume occupied by the $(m+i)$-labeled spin population in the selected slice"); Ashenagar et al. (2025: signals "averaged together within each slice"); Söderström et al. (2026, §2.5: "the mean transverse magnetization of all elements localized within the slice") | Brown et al. (2014, eq. 24.9) |
+| Point-sampled sub-slices limit how finely the inflow is resolved | Markl et al. (2003, Methods): with the slice cut into $N_S$ sub-slices, "the number of subslices determined the minimal spin replacement per TR"; 20 sub-slices gave 5 % per TR | |
+| Cell average $F(x_b)-F(x_a)$ over an isochromat's thickness | **Derived here** from the rows above. It is the exact integral of the integer count over the cell, so it removes the sub-slice resolution limit that the previous point sampling had. No source states it. It is validated against a pulse-by-pulse simulation that uses no closed form (§5) | |
 
-The cell average $F(x_b)-F(x_a)$ is **derived here** from that model. It is the exact integral of
-the integer count over an isochromat's thickness, and it is not quoted from any source. It is
-validated against a pulse-by-pulse simulation that uses no closed form (§5).
-
-The literature treats slow through-plane inflow the same way: a volume-weighted sum over
-populations with integer pulse counts.
-
-- Gullberg et al. (1988): "the total signal is the sum of the echo amplitudes from each spin
-  population, each weighted by the fractional volume occupied by that population".
-- Gao et al. (1996, eq. 2): the same for spoiled GRE with laminar flow.
-- Ashenagar et al. (2025): spin ensembles are tracked as point particles, each one's integer
-  number of excitations is counted, and signals are "averaged together within each slice".
+**No source read uses a fractional pulse count** $Q_1^{x}$ with continuous $x$, which is what the
+previous code did. The only continuous closed forms in the literature are Bianciardi et al.'s
+eq. 2.4 evaluated at non-integer $v_C/v$ (which they exclude: "we assumed integer values of
+$v_C/v$") and Brown et al.'s "pseudo-$T_1$" approximation (§24.1.5). Both are whole-column
+formulas, not per-spin counts.
 
 ## 4. What was wrong, and what changed
 
@@ -95,7 +115,7 @@ populations with integer pulse counts.
 | Plane-count dependence | yes (9 planes by default: −11 % to +39 % of the excess) | none (spread $< 10^{-15}$ from 3 to 21 planes) |
 | Axis toward $-z$ with $v>0$ | negative $n$: $M_z$ up to $2.2\,M_0$ | entry face chosen from the sign of $v\,\hat n_z$ |
 | In-plane vessel ($\hat n_z = 0$) | $0/0$ | explicit error |
-| Isochromat with $v = 0$ at $d = 0$ | $0/0$ → NaN in the voxel sum | $M_{ss}$ |
+| Isochromat with $v = 0$ at $d = 0$ (lumen edge, first plane) | $0/0$ → NaN; it reaches the voxel sum when `WT > 0` (with `WT = 0` the tissue value overwrote it, see [#3](https://github.com/Proulx-S/pcMRAsim/issues/3)) | $M_{ss}$ |
 | Surround (`S.surround` empty) | $M_{ss}$ with the **blood** $T_1$ | $M_{ss}$ with the GM $T_1$ |
 | Slab thickness | `fovSLC`, silently independent of `pMri.sliceThickness` (runSim defaults: 2 mm vs 1 mm) | error if they differ when `matSLC = 1`; runSim default `fovSLC = 1` |
 | `getMz_n(…, n)` with non-integer $n$ | accepted | error; pass `nWidth` for a cell average |
@@ -155,9 +175,65 @@ addpath(pcMRAsimDir); addpath(fullfile(pcMRAsimDir,'tests')); addpath(utilDir); 
 - **Cell average along the slice only.** The radius, and so $v$, is evaluated at the isochromat
   centre. In-plane partial volume comes from the in-plane grid.
 - **Lumen edge with `WT = 0`.** An isochromat exactly at $r = ID/2$ matches both the lumen and the
-  tissue mask, and the tissue value is kept (unchanged here).
+  tissue mask, and the tissue value is kept. This is unchanged here and filed as
+  [#3](https://github.com/Proulx-S/pcMRAsim/issues/3).
+
+## 7. Affected branches and callers
+
+Checked on 2026-11-03 on every `origin` branch:
+
+- **The continuous count** (`Q1.^n` in `getMz_n`, depth measured from the first plane in
+  `simVesselSpins`) exists only on **`dev-qvfMRI`**. The other branches have no `getMz_n`; they use
+  util `getMz_ss` per spin (2D column model), or `inflowEnhancementBianciardi` on `main`.
+- **Projects:** no project on takoyaki loads pcMRAsim `dev-qvfMRI` from a doIt.
+  multiVencISMRM2026 carries project-local copies of `getMz_n.m` and `simVesselSpins.m` with the
+  same continuous count; this branch does not reach them.
+
+Related errors in the 2D column model, on other branches, not fixed here:
+
+- util `getMz_ss`, which every branch except `main` calls from `simVesselSpins`, used
+  `ceil(vCrit/vel)`. That is fixed on util `dev-erratum-inflowColumn`.
+- pcMRAsim `main`'s `inflowEnhancementBianciardi` uses the continuous $u = v_c/v$ in Bianciardi
+  et al.'s eq. 2.4. The investigation (§8) found that to be off by up to +2 % of the excess.
+  util `getMz_ss` on `dev-erratum-inflowColumn` is the exact replacement.
+
+Found in the same code and filed separately:
+
+- the lumen/tissue mask overlap, [#3](https://github.com/Proulx-S/pcMRAsim/issues/3);
+- `costFun_inflow` setting fields that the simulation never reads,
+  [#4](https://github.com/Proulx-S/pcMRAsim/issues/4).
+
+## 8. How this was found
+
+The error turned up on 2026-11-02, while the vesTrack project was porting this 3D model to
+synthesize vessel time series. The question was whether the existing inflow models account for
+the spread of pulse counts along the slice. The investigation:
+
+- derived the column average from first principles;
+- ran the real `dev-qvfMRI` functions against a pulse-by-pulse recursion;
+- compared them with the 2D column variants in util;
+- read the sources below in full text.
+
+Its write-up is kept unedited as a frozen record:
+[`docs/errata/inflowCheck-2026-11-02.md`](errata/inflowCheck-2026-11-02.md).
 
 ## References
+
+How each source was read:
+
+- **Full text, 2026-11-03:**
+  - Bianciardi et al. (2016), PMC4822444, equations read from their images;
+  - Ashenagar et al. (2025), PMC12319909;
+  - Söderström et al. (2026), PMC13418971;
+  - Brown et al. (2014) §24.1 and Gao et al. (1996), from the PDFs.
+- **Full-text excerpt only, 2026-11-03:** Markl et al. (2003), the Methods passage quoted above.
+- **Full text, 2026-11-02** (the investigation in §8):
+  - Gullberg et al. (1988), pp. 437–439 only; its abstract was re-read on 2026-11-03;
+  - Kim & Parker (2012), pp. 39–42 only.
+- **Not read:** Gao, Holland & Gore (1988, *Med. Phys.* 15:809), which Gao et al. (1996) cite for
+  the details of their eq. 2. It is not used as a source here.
+
+Every DOI was resolved on 2026-11-03, and its title and first author checked.
 
 Ashenagar, B., Gomez, D. E. P., & Lewis, L. D. (2025). Modeling dynamic inflow effects in fMRI to
 quantify cerebrospinal fluid flow. *Imaging Neuroscience*, 3, IMAG.a.9.
@@ -185,3 +261,11 @@ flowing during the application of spin echo pulse sequences. *Magnetic Resonance
 Kim, S.-E., & Parker, D. L. (2012). Time-of-flight angiography. In J. C. Carr & T. J. Carroll
 (Eds.), *Magnetic Resonance Angiography: Principles and Applications* (pp. 39–50). Springer.
 https://doi.org/10.1007/978-1-4419-1686-0_2 (book chapter)
+
+Markl, M., Alley, M. T., Elkins, C. J., & Pelc, N. J. (2003). Flow effects in balanced steady
+state free precession imaging. *Magnetic Resonance in Medicine*, 50(5), 892–903.
+https://doi.org/10.1002/mrm.10631
+
+Söderström, P., Björnfot, C., Andersson, B. M., Malm, J., Eklund, A., & Wåhlin, A. (2026).
+Quantifying cardiac, respiratory, and low frequency components of CSF motion from fMRI inflow
+effects. *Magnetic Resonance in Medicine*, 96(4), 1916–1928. https://doi.org/10.1002/mrm.70438
