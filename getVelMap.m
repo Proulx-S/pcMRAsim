@@ -25,7 +25,6 @@ rLami = r./lamiR - plugR;
 
 switch type
     case 'parabolic'
-
         % linear/parabolic flow profile
         p0 = 1              ;
         p1 = 1 .* -(1-p2op1);
@@ -35,9 +34,9 @@ switch type
         % plug flow center
         v(r<=plugR) = 1;
 
-    % case 'plugFlow'
-    %     v = zeros(size(r));
-    %     v(r<ID/2) = 1; % 1 inside, 0 outside
+    case {'plug','plugFlow'}
+        v = zeros(size(r));
+        v(r<ID/2) = 1; % 1 inside, 0 outside
     % case 'bluntedParabolic'
     %     v = 1 - (r/(ID/2)).^2; % parabola (vMax at the center, 0 at the edge, negative beyond)
     %     v(v<0) = 0; % make it a cross-section profile (0 beyond the edge)
