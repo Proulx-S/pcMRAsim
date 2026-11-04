@@ -7,6 +7,7 @@ function test_costFun_inflow
 p = runSim;                                   % defaults: 3 x 3 voxels, 7 T
 pVessel = p.pVessel; pSim = p.pSim; pMri = p.pMri;
 pSim.gridMode = 'allVox';                     % as multiVencISMRM2026 doIt_inflow section 13
+pSim.voxGrid.fovSLC = pMri.sliceThickness;    % idem (older runSim defaults differ: 2 vs 1 mm)
 pVessel.geometry = 'infiniteCylinder';
 pVessel.ID = 0.6; pVessel.WT = 0.05; pVessel.vMean = 2;
 pVessel.n_hat = [0; 0; 1];
