@@ -1,4 +1,28 @@
 function [magMap,vMap,mask,pVessel] = simVesselSpins(xGrid, yGrid, pVessel, pSim, x0, y0, anaFlag, vFix)
+% simVesselSpins  Spin magnitude and velocity maps for a vessel cross-section, with inflow enhancement.
+%
+% INFLOW MODEL VERSION: continuous-u (Bianciardi et al. 2016 eq. 2.4 at non-integer u = vCrit/v).
+%   The lumen inflow factor comes from inflowEnhancementBianciardi, which evaluates eq. 2.4,
+%   (1 - q^u)/(u*(1 - q)), at u = vCrit/v for each spin's velocity (or the velocity anaFlag selects).
+%   Eq. 2.4 is derived for integer u only; between integers this smooth curve is up to a few % high
+%   compared with the exact slice-column average (piecewise linear in v). Not the recommended model:
+%   the exact version is util getMz_ss on a util errata branch (util#15) and, per isochromat,
+%   simVesselSpins/getMz_n on the pcMRAsim errata branch (pcMRAsim#5). Kept unchanged for
+%   reproducibility of results computed with it.
+%
+% REFERENCES
+%   Bianciardi M, Toschi N, Polimeni JR, et al. (2016) The pulsatility volume index: an indicator of
+%     cerebrovascular compliance based on fast magnetic resonance imaging of cardiac and respiratory
+%     pulsatility. Phil Trans R Soc A 374:20150184. doi:10.1098/rsta.2015.0184
+%     (three-regime formulation; eq. 2.4, derived for integer vCrit/v)
+%   Gullberg GT, Simons MA, Wehrli FW (1988) A mathematical model for signal from spins flowing during
+%     the application of spin echo pulse sequences. Magn Reson Imaging 6:437-461.
+%     doi:10.1016/0730-725X(88)90481-X (fractional-volume method)
+%   Gao J-H, Holland SK, Gore JC (1988) Nuclear magnetic resonance signal from flowing nuclei in rapid
+%     imaging using gradient echoes. Med Phys 15:809-814. doi:10.1118/1.596197
+%     (that method for spoiled FLASH: exact for non-integer vCrit/v, sec. III.A, eq. 26)
+%   Comparison of the four inflow versions (2026-11-06; private repo, the label above stands on its own):
+%   https://github.com/Proulx-S/microscopyValidation/blob/9057997d65a96cad63419fed24daa1ba885ed6c6/docs/inflowBetweenIntegerPulseCounts.md
 if ~exist('x0','var')      || isempty(x0); x0 = pVessel.x0; end
 if ~exist('y0','var')      || isempty(y0); y0 = pVessel.y0; end
 if ~exist('anaFlag','var') || isempty(anaFlag); anaFlag = 'inflowOnSpinVelocity'; end
