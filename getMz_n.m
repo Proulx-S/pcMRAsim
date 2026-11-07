@@ -36,6 +36,32 @@ function [Mz_n, pMri, Mo] = getMz_n(pMri, pRelax, n, Mo, nWidth)
 % Special cases:
 %   n = 0    -> Mz_n = Mo     (not yet pulsed, fully relaxed)
 %   n = Inf  -> Mz_n = Mz_ss  (stationary spins: steady state)
+%
+% INFLOW MODEL VERSION: exact (cell average of the integer pulse count, piecewise linear).
+%   A spin at x = depth/(v*TR) has received floor(x) earlier pulses, never a fraction of one; the cell
+%   average weights each integer-count population by its fractional width in the cell, so the result
+%   is piecewise linear in x. Over a whole slice column of plug flow it equals util getMz_ss (exact),
+%   which in turn equals Bianciardi et al. 2016 eq. 2.4 at integer vCrit/v. Other versions in older
+%   code (not used here): "continuous count" (Q1^x with fractional x; too low, the bug fixed on this
+%   branch), "staircase" (ceil(vCrit/v) in eq. 2.4) and "continuous-u" (eq. 2.4 at non-integer
+%   vCrit/v; smooth, up to a few % high between integers; inflowEnhancementBianciardi).
+%
+% REFERENCES
+%   Bianciardi M, Toschi N, Polimeni JR, et al. (2016) The pulsatility volume index: an indicator of
+%     cerebrovascular compliance based on fast magnetic resonance imaging of cardiac and respiratory
+%     pulsatility. Phil Trans R Soc A 374:20150184. doi:10.1098/rsta.2015.0184
+%     (three-regime formulation; eq. 2.4, derived for integer vCrit/v)
+%   Gullberg GT, Simons MA, Wehrli FW (1988) A mathematical model for signal from spins flowing during
+%     the application of spin echo pulse sequences. Magn Reson Imaging 6:437-461.
+%     doi:10.1016/0730-725X(88)90481-X (fractional-volume method: each spin population weighted by
+%     its fractional volume)
+%   Gao J-H, Holland SK, Gore JC (1988) Nuclear magnetic resonance signal from flowing nuclei in rapid
+%     imaging using gradient echoes. Med Phys 15:809-814. doi:10.1118/1.596197
+%     (that method for spoiled FLASH: integer-count populations plus the partly filled residual one,
+%     sec. III.A, eq. 26)
+%   Comparison of the four versions and the choice of the exact one (2026-11-06; private repo, the
+%   summary above stands on its own):
+%   https://github.com/Proulx-S/microscopyValidation/blob/9057997d65a96cad63419fed24daa1ba885ed6c6/docs/inflowBetweenIntegerPulseCounts.md
 
 if exist('pRelax','var') && ~isempty(pRelax) && isfield(pRelax,'T1') && ~isempty(pRelax.T1)
     pMri.E1 = exp(-pMri.TR / pRelax.T1);

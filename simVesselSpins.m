@@ -1,4 +1,30 @@
 function [mMap,vMap,pVessel,pSim,pMri] = simVesselSpins(pVessel, pSim, pMri)
+% simVesselSpins  Isochromat magnetization and velocity maps for an infinite cylindrical vessel
+% (parabolic flow) crossing a rectangular excited slab, with through-plane inflow.
+%
+% INFLOW MODEL VERSION: exact (cell average of the integer pulse count, piecewise linear).
+%   Each lumen isochromat at depth dz below the entry face, through-plane speed vz, has received
+%   floor(dz/(vz*TR)) earlier pulses; its Mz is the exact average over its cell along the slab
+%   (getMz_n with nWidth), so lumen Mz is piecewise linear in dz/(vz*TR), with no fractional
+%   pulse count. Other versions in older code (not used here): "continuous count" (Q1^(dz/(vz*TR))
+%   with a fractional count; too low, the bug fixed on this branch), "staircase" (ceil(vCrit/v) in
+%   Bianciardi et al. 2016 eq. 2.4) and "continuous-u" (eq. 2.4 at non-integer vCrit/v; smooth, up
+%   to a few % high between integers). Details: getMz_n, docs/inflowPulseCount.md.
+%
+% REFERENCES
+%   Bianciardi M, Toschi N, Polimeni JR, et al. (2016) The pulsatility volume index: an indicator of
+%     cerebrovascular compliance based on fast magnetic resonance imaging of cardiac and respiratory
+%     pulsatility. Phil Trans R Soc A 374:20150184. doi:10.1098/rsta.2015.0184
+%     (three-regime formulation; eq. 2.4, derived for integer vCrit/v)
+%   Gullberg GT, Simons MA, Wehrli FW (1988) A mathematical model for signal from spins flowing during
+%     the application of spin echo pulse sequences. Magn Reson Imaging 6:437-461.
+%     doi:10.1016/0730-725X(88)90481-X (fractional-volume method)
+%   Gao J-H, Holland SK, Gore JC (1988) Nuclear magnetic resonance signal from flowing nuclei in rapid
+%     imaging using gradient echoes. Med Phys 15:809-814. doi:10.1118/1.596197
+%     (that method for spoiled FLASH, sec. III.A, eq. 26)
+%   Comparison of the four versions and the choice of the exact one (2026-11-06; private repo, the
+%   summary above stands on its own):
+%   https://github.com/Proulx-S/microscopyValidation/blob/9057997d65a96cad63419fed24daa1ba885ed6c6/docs/inflowBetweenIntegerPulseCounts.md
 
 
 % --- isochromat coordinate grids ---
