@@ -21,9 +21,27 @@ function [f,Mzss_v0,fMax,vCrit,v_cm_s] = inflowEnhancementBianciardi(v_cm_s, inf
 %
 % At FA = 90°, q = 0 and regime-2 factor reduces to v/vCrit (linear in v).
 %
+% INFLOW MODEL VERSION: continuous-u (Bianciardi et al. 2016 eq. 2.4 at non-integer u = vCrit/v).
+%   Eq. 2.4 is derived for integer u only ("for the sake of simplicity, we assumed integer values of
+%   vC/v", p. 4); evaluating it at non-integer u gives a smooth curve that agrees with the exact
+%   slice-column average at every integer u and is up to a few % high between them (3.3 % in Mz for
+%   TR 50 ms, FA 58°, T1 3 s, 0.3 mm). Not the recommended model: for the exact column average
+%   (piecewise linear in v; Gullberg et al. 1988 fractional volumes, Gao, Holland & Gore 1988 eq. 26)
+%   use util getMz_ss on a util errata branch (util#15), or, for isochromats, getMz_n on the
+%   pcMRAsim errata branch (pcMRAsim#5). Kept unchanged for reproducibility of results computed
+%   with it.
+%
 % [1] Bianciardi M et al. The pulsatility volume index: an indicator of cerebrovascular
 %     compliance based on fast magnetic resonance imaging of cardiac and respiratory
-%     pulsatility. Phil Trans R Soc A 374:20150184, 2016.
+%     pulsatility. Phil Trans R Soc A 374:20150184, 2016. doi:10.1098/rsta.2015.0184
+% [2] Gullberg GT, Simons MA, Wehrli FW. A mathematical model for signal from spins flowing during
+%     the application of spin echo pulse sequences. Magn Reson Imaging 6:437-461, 1988.
+%     doi:10.1016/0730-725X(88)90481-X (fractional-volume method)
+% [3] Gao J-H, Holland SK, Gore JC. Nuclear magnetic resonance signal from flowing nuclei in rapid
+%     imaging using gradient echoes. Med Phys 15:809-814, 1988. doi:10.1118/1.596197
+%     (that method for spoiled FLASH: exact for non-integer vCrit/v, sec. III.A, eq. 26)
+% Comparison of the four inflow versions (2026-11-06; private repo, the label above stands on its own):
+% https://github.com/Proulx-S/microscopyValidation/blob/9057997d65a96cad63419fed24daa1ba885ed6c6/docs/inflowBetweenIntegerPulseCounts.md
 %
 % Inputs:
 %   v_cm_s              velocity [cm/s] (scalar or array)
