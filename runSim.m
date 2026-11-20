@@ -119,13 +119,13 @@ if ~exist('pMri','var') || iscell(pMri) || isempty(pMri)
         case 14
             switch pMri.species
                 case 'mouse'
-                    pMri.relax.blood.T1     = 2.7  ; % [s]  new value = 2.900s
+                    % pMri.relax.blood.T1     = 2.7  ; % [s]  Dobre extrapolation, Hct-reduced (see below); used 2026-05-29 to 2026-11-19
                     % pMri.relax.blood.T2star = 10e-3; % [s]  new value = 0.005s
                     % pMri.relax.GM.T1        = 2.3  ; % [s]  new value = 2.100s
                     % pMri.relax.GM.T2star    = 15e-3; % [s]
 
                     % just take it from Bates et al. 2023 (doi:10.1007/s10334-023-01081-3)
-                    % pMri.relax.blood.T1     = 3   ; % [s]
+                    pMri.relax.blood.T1     = 3   ; % [s]  (Seb, 2026-11-19: the manuscript's value)
                     pMri.relax.blood.T2star = 5e-3; % [s]  venous T2 = 6ms, here we eyeball a shorter T2* midway between venous and arterial
                     pMri.relax.GM.T1        = 2.3  ; % [s]  
                     pMri.relax.GM.T2star    = 16e-3; % [s]
@@ -137,7 +137,7 @@ if ~exist('pMri','var') || iscell(pMri) || isempty(pMri)
             end
             % Mouse at 14T: no direct measurement. Linear field dependence (Dobre et al., Magn Reson Imag 25(5):733–735, 2007):
             %   T1(ms) = 129*B0 + 1167 (1.5–9.4 T); extrapolation at 14T → 2.97 s. Reduced for higher mouse Hct (~0.48) vs human → ~2.7 s.
-            %   Using 2.7 s as nominal mouse blood T1 at 14T.
+            %   This gave the nominal 2.7 s used 2026-05-29 to 2026-11-19; the default is now Bates et al. 2023's 3 s.
             % Mouse at 14T: no direct 14T. Cortical (isocortex) at 11.7T ~2.04 s in vivo (Kumar et al., NMR Biomed 39(1):e70187, 2026, doi:10.1002/nbm.70187).
             %   T1 increases with B0; extrapolation 11.7T→14T → ~2.3 s. Using 2.3 s as nominal mouse cortical GM T1 at 14T.
             % Mouse at 14T: venous T2 (not T2*) at 11.7T 26.9±1.7 ms normoxia (Wei et al., MRM 80:521–528, 2018, doi:10.1002/mrm.27046).

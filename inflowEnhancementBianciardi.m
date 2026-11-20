@@ -11,7 +11,8 @@ function [f,Mzss_v0,fMax,vCrit,v_cm_s] = inflowEnhancementBianciardi(v_cm_s, inf
 % With q = exp(-TR/T1)*cos(FA) and vCrit = slice_thickness_cm / TR:
 %
 %   Mz(v=0)   = M0 * (1 - exp(-TR/T1)) / (1 - q)
-%   Mz(0<v<vCrit) = Mz(v=0) + (M0 - Mz(v=0)) * (1 - q^(vCrit/v)) / ((vCrit/v)*(1 - q))
+%   Mz(0<v<vCrit) = Mz(v=0) + (M0 - Mz(v=0)) * [ (1-q^K)/(1-q) + (U-K)*q^K ] / U,
+%                   with U = vCrit/v and K = floor(U)  (slice-column average, see below)
 %   Mz(v>=vCrit) = M0
 %   
 %   !! All for M0=1 !!
@@ -21,15 +22,14 @@ function [f,Mzss_v0,fMax,vCrit,v_cm_s] = inflowEnhancementBianciardi(v_cm_s, inf
 %
 % At FA = 90°, q = 0 and regime-2 factor reduces to v/vCrit (linear in v).
 %
-% INFLOW MODEL VERSION: continuous-u (Bianciardi et al. 2016 eq. 2.4 at non-integer u = vCrit/v).
-%   Eq. 2.4 is derived for integer u only ("for the sake of simplicity, we assumed integer values of
-%   vC/v", p. 4); evaluating it at non-integer u gives a smooth curve that agrees with the exact
-%   slice-column average at every integer u and is up to a few % high between them (3.3 % in Mz for
-%   TR 50 ms, FA 58°, T1 3 s, 0.3 mm). Not the recommended model: for the exact column average
-%   (piecewise linear in v; Gullberg et al. 1988 fractional volumes, Gao, Holland & Gore 1988 eq. 26)
-%   use util getMz_ss on a util errata branch (util#15), or, for isochromats, getMz_n on the
-%   pcMRAsim errata branch (pcMRAsim#5). Kept unchanged for reproducibility of results computed
-%   with it.
+% INFLOW MODEL VERSION: exact (slice-column average, piecewise linear in v).
+%   The slice column holds K whole velocity segments (seen 0..K-1 earlier pulses) plus one partly
+%   filled segment (seen K), each weighted by its volume (Gullberg et al. 1988 fractional volumes;
+%   Gao, Holland & Gore 1988 eq. 26). The factor equals Bianciardi et al. 2016 eq. 2.4,
+%   (1-q^U)/(U*(1-q)), at every integer U; eq. 2.4 is derived for integer U only, and evaluating it
+%   at non-integer U ("continuous-u", this function's version until 2026-11-19) is up to a few %
+%   high between integers (3.3 % in Mz for TR 50 ms, FA 58°, T1 3 s, 0.3 mm). Same formula as util
+%   getMz_ss (util main from 2026-11; tests in util tests/test_getMz_ss.m).
 %
 % [1] Bianciardi M et al. The pulsatility volume index: an indicator of cerebrovascular
 %     compliance based on fast magnetic resonance imaging of cardiac and respiratory
@@ -90,21 +90,20 @@ end
 
 % v_cm_s = max(0, v_cm_s);
 
-% Regime 2 factor: (1 - q^(vCrit/v)) / ((vCrit/v)*(1 - q));  u = vCrit/v
-u = nan(size(v_cm_s));
-u(v_cm_s > 0) = vCrit ./ v_cm_s(v_cm_s > 0);
-
+% Regime 2 factor: slice-column average of q^m, U = vCrit/v, K = floor(U)
+%   <q^m> = [ (1-q^K)/(1-q) + (U-K)*q^K ] / U   (= eq. 2.4, (1-q^U)/(U*(1-q)), at integer U)
+U = nan(size(v_cm_s));
+U(v_cm_s > 0) = vCrit ./ v_cm_s(v_cm_s > 0);
+K = floor(U);
 if abs(1 - q) < 1e-12
-    % q ≈ 1 (e.g. very low FA): limit → 1
-    f = double(v_cm_s >= vCrit);
-    f(v_cm_s > 0 & v_cm_s < vCrit) = v_cm_s(v_cm_s > 0 & v_cm_s < vCrit) / vCrit;
+    geo = K;                          % q ≈ 1: the geometric sum (1-q^K)/(1-q) tends to K
 else
-    % Paper Eq. (2.4): factor (1 - q^u) / (u*(1 - q))
-    f = (1 - q.^u) ./ (u * (1 - q));
-    f = min(1, max(0, f));
-    f(v_cm_s >= vCrit) = 1;
-    f(v_cm_s <= 0)  = 0;
+    geo = (1 - q.^K) ./ (1 - q);
 end
+f = (geo + (U - K) .* q.^K) ./ U;
+f = min(1, max(0, f));
+f(v_cm_s >= vCrit) = 1;
+f(v_cm_s <= 0)  = 0;
 
 % Relative signal: f = Mz / Mz(v=0) = 1 + (fMax - 1)*f
 f = 1 + f .* (fMax - 1);

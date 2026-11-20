@@ -1,4 +1,12 @@
 function [magMap,vMap,pVessel,pSim,pMri] = simVesselSpins(pVessel, pSim, pMri, posFE, posPE)
+% simVesselSpins  Spin magnitude and velocity maps for a vessel cross-section, with inflow enhancement.
+%
+% INFLOW MODEL VERSION: whatever util getMz_ss implements. Lumen Mz comes from getMz_ss per spin
+%   velocity (or at vMean for a plug profile). util main from 2026-11 is exact (slice-column average,
+%   piecewise linear in v; util tests/test_getMz_ss.m); older util branches (Miller2026,
+%   dev-inflow, dev-postISMRM) are the staircase version, ceil(vCrit/v), and their errata branches
+%   are exact. Comparison of the inflow versions (2026-11-06; private repo):
+%   https://github.com/Proulx-S/microscopyValidation/blob/9057997d65a96cad63419fed24daa1ba885ed6c6/docs/inflowBetweenIntegerPulseCounts.md
 if ~exist('posFE','var') || isempty(posFE); posFE = 0; end
 if ~exist('posPE','var') || isempty(posPE); posPE = 0; end
 
