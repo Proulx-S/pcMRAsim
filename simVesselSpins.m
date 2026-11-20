@@ -1,109 +1,78 @@
-function [magMap,vMap,mask,pVessel] = simVesselSpins(xGrid, yGrid, pVessel, pSim, x0, y0, anaFlag, vFix)
-% simVesselSpins  Spin magnitude and velocity maps for a vessel cross-section, with inflow enhancement.
-%
-% INFLOW MODEL VERSION: continuous-u (Bianciardi et al. 2016 eq. 2.4 at non-integer u = vCrit/v).
-%   The lumen inflow factor comes from inflowEnhancementBianciardi, which evaluates eq. 2.4,
-%   (1 - q^u)/(u*(1 - q)), at u = vCrit/v for each spin's velocity (or the velocity anaFlag selects).
-%   Eq. 2.4 is derived for integer u only; between integers this smooth curve is up to a few % high
-%   compared with the exact slice-column average (piecewise linear in v). Not the recommended model:
-%   the exact version is util getMz_ss on a util errata branch (util#15) and, per isochromat,
-%   simVesselSpins/getMz_n on the pcMRAsim errata branch (pcMRAsim#5). Kept unchanged for
-%   reproducibility of results computed with it.
-%
-% REFERENCES
-%   Bianciardi M, Toschi N, Polimeni JR, et al. (2016) The pulsatility volume index: an indicator of
-%     cerebrovascular compliance based on fast magnetic resonance imaging of cardiac and respiratory
-%     pulsatility. Phil Trans R Soc A 374:20150184. doi:10.1098/rsta.2015.0184
-%     (three-regime formulation; eq. 2.4, derived for integer vCrit/v)
-%   Gullberg GT, Simons MA, Wehrli FW (1988) A mathematical model for signal from spins flowing during
-%     the application of spin echo pulse sequences. Magn Reson Imaging 6:437-461.
-%     doi:10.1016/0730-725X(88)90481-X (fractional-volume method)
-%   Gao J-H, Holland SK, Gore JC (1988) Nuclear magnetic resonance signal from flowing nuclei in rapid
-%     imaging using gradient echoes. Med Phys 15:809-814. doi:10.1118/1.596197
-%     (that method for spoiled FLASH: exact for non-integer vCrit/v, sec. III.A, eq. 26)
-%   Comparison of the four inflow versions (2026-11-06; private repo, the label above stands on its own):
-%   https://github.com/Proulx-S/microscopyValidation/blob/9057997d65a96cad63419fed24daa1ba885ed6c6/docs/inflowBetweenIntegerPulseCounts.md
-if ~exist('x0','var')      || isempty(x0); x0 = pVessel.x0; end
-if ~exist('y0','var')      || isempty(y0); y0 = pVessel.y0; end
-if ~exist('anaFlag','var') || isempty(anaFlag); anaFlag = 'inflowOnSpinVelocity'; end
-    % anaFlag = 'inflowFixedAtMax';
-    % anaFlag = 'inflowFixedAtVelocity';
-    % anaFlag = 'inflowOnMeanVelocity';
-    % anaFlag = 'inflowOnSpinVelocity';
+function [magMap,vMap,pVessel,pSim,pMri] = simVesselSpins(pVessel, pSim, pMri, posFE, posPE)
+if ~exist('posFE','var') || isempty(posFE); posFE = 0; end
+if ~exist('posPE','var') || isempty(posPE); posPE = 0; end
 
-% NOTE: The 0 to 1 MR signal is defined on the full ROI
-%       Single-spin signal is the full ROI signal divided by the number of spins in the ROI
-%       This part of the code is not aware of voxels.
-%       This signal definition needs to be taken into account when later summing signal in a voxel (ROI subset). 
-
-
-% Define vessel radial coordinates
-rGrid = sqrt((xGrid-x0).^2 + (yGrid-y0).^2);
-nSpin = numel(rGrid);
-
+% Define radial coordinates (relative to vessel center)
+rGrid = sqrt((pSim.gridFE-posFE).^2 + (pSim.gridPE-posPE).^2);
 
 % Define compartments masks
-mask.lumen      = rGrid<=(pVessel.ID/2); % vessel lumen
-mask.wall       = rGrid> (pVessel.ID/2) & rGrid<=(pVessel.ID/2+pVessel.WT); % vessel wall
-mask.surround   = rGrid> (pVessel.ID/2+pVessel.WT); % static surround
-mask.lumenPlug  = rGrid< (pVessel.PD/2) & mask.lumen; % plug flow center
-mask.lumenLami  = rGrid>=(pVessel.PD/2) & mask.lumen; % laminar flow region
-
-
-% Define ROI compartment fractions
-cmptList = fieldnames(mask);
-for iCmpt = 1:length(cmptList)
-    pVessel.volFraction.(cmptList{iCmpt}) = mean(mask.(cmptList{iCmpt}),[1 2]);
-end
-
-
-% Define spin velocity map
-vMap = getVelMap(rGrid, pVessel.ID, pVessel.profile, pVessel.PD); % [cm/s]
-if ~isempty(pVessel.vMax) && isempty(pVessel.vMean)
-    vMap = scale2maxVel(vMap, pVessel.vMax); % to the desired maximum velocity
-elseif ~isempty(pVessel.vMean) && isempty(pVessel.vMax)
-    vMap = scale2meanVel(vMap, pVessel.vMean, mask.lumen); % to the desired mean velocity
-else
-    error('Either pVessel.vMax or pVessel.vMean must be specified');
-end
-
-
-% % Define spin signal magnitude
-% cmptList = fieldnames(pVessel.S);
-% for iCmpt = 1:length(cmptList)
-%     pVessel.spinMag.(cmptList{iCmpt}) = pVessel.S.(cmptList{iCmpt});
+% if ~isfield(pVessel,'mask'); pVessel.mask = struct('lumen',[],'wall',[],'surround',[]); end
+% if isempty(pVessel.mask.lumen) || isempty(pVessel.mask.wall) || isempty(pVessel.mask.surround)
+    pVessel.mask.lumen      = rGrid<=(pVessel.ID/2);                                    % vessel lumen
+    pVessel.mask.wall       = rGrid> (pVessel.ID/2) & rGrid<=(pVessel.ID/2+pVessel.WT); % vessel wall
+    pVessel.mask.surround   = rGrid> (pVessel.ID/2+pVessel.WT);                         % static surround
 % end
 
-% Define signal magnitude map
-magMap = zeros(size(rGrid));
-f      = nan(size(vMap));
-switch anaFlag
-    case 'inflowFixedAtMax'
-        vel = inf;
-    case 'inflowFixedAtVelocity'
-        vel = vFix;
-    case 'inflowOnMeanVelocity'
-        vel = pVessel.vMean;
-    case 'inflowOnSpinVelocity'
-        vel = vMap(mask.lumen);
-    otherwise
-        dbstack; error('invalid anaFlag');
+% Define spin velocity map
+if ischar(pVessel.profile)
+    vMap = getVelMap(rGrid, pVessel.ID, pVessel.profile, pVessel.PD); % [cm/s]
+    if ~isempty(pVessel.vMax) && isempty(pVessel.vMean)
+        vMap = scale2maxVel(vMap, pVessel.vMax); % to the desired maximum velocity
+    elseif ~isempty(pVessel.vMean) && isempty(pVessel.vMax)
+        vMap = scale2meanVel(vMap, pVessel.vMean, pVessel.mask.lumen); % to the desired mean velocity
+    elseif strcmp(pVessel.profile,'parabolic1') && ~isempty(pVessel.vMax) && ~isempty(pVessel.vMean) && pVessel.vMax/2==pVessel.vMean
+        vMap = scale2meanVel(vMap, pVessel.vMean, pVessel.mask.lumen); % to the desired mean velocity
+    else
+        error('Either pVessel.vMax or pVessel.vMean must be specified');
+    end
+elseif isnumeric(pVessel.profile)
+    vMap = zeros(size(rGrid));
+    vMap(:) = pVessel.profile;
+else
+    dbstack; error('Invalid vessel profile');
 end
-[f(mask.lumen), Mz_v0, fMax, vCrit] = inflowEnhancementBianciardi(vel,pVessel.inflow);
-Mxy_v0 = Mz_v0.*sin(pSim.FA*pi/180).*exp(-pSim.TE./pVessel.T2star.blood);
-magMap(mask.lumen)      = f(mask.lumen).*Mxy_v0;
-pVessel.inflow.Mz_v0    = Mz_v0;
-pVessel.inflow.fMax     = fMax;
-pVessel.inflow.vCrit    = vCrit;
 
-if nnz(mask.lumenPlug)
-    dbstack; error('double-check that');
-    magMap(mask.lumenPlug) = pVessel.S.lumenPlug; % plug flow center of the vessel lumen (single spin magnitudes)
+
+% MR signal magnitude
+% vessel lumen signal (flowing)
+switch pVessel.profile
+    case 'plug'
+        [Mz_vMean,pMri] = getMz_ss(          pMri,pMri.relax.blood,pVessel.vMean);
+        [Mxy_vMax,pMri] = getMxy_ss(Mz_vMean,pMri,pMri.relax.blood              );
+        pVessel.S.lumen = Mxy_vMax;
+    case {'parabolic','parabolic1'}
+        [Mz ,pMri] = getMz_ss(    pMri,pMri.relax.blood,vMap(pVessel.mask.lumen));
+        [Mxy,pMri] = getMxy_ss(Mz,pMri,pMri.relax.blood                         );
+        pVessel.S.lumen = Mxy;
+    otherwise
+        dbstack; error('Invalid vessel profile');
 end
-if nnz(mask.wall)
-    dbstack; error('double-check that');
-    magMap(mask.wall) = pVessel.S.wall; % wall of the vessel (single spin magnitudes)
+% vessel surround (static)
+Mxy = getMxy_ss(getMz_ss(pMri,pMri.relax.GM),pMri,pMri.relax.GM);
+pVessel.S.surround = Mxy;
+% map signal magnitude
+magMap = zeros(size(rGrid));
+magMap(pVessel.mask.lumen)    = pVessel.S.lumen;
+magMap(pVessel.mask.surround) = pVessel.S.surround;
+magMap = magMap./pSim.nSpin; % divide by the number of spins a voxel, so summing the spins gives the measured signal in a voxel
+
+
+% Precompute montecarlo tessalation
+if pSim.monteCarloN > 0 && (~isfield(pSim,'monteCarloShiftFE') || ~isfield(pSim,'monteCarloShiftPE') || isempty(pSim.monteCarloShiftFE) || isempty(pSim.monteCarloShiftPE))
+    nSpinFE = max(sum(pSim.gridVoxIdx==0,2));
+    shiftFE = (1:nSpinFE)-nSpinFE/2-0.5;
+    nSpinPE = max(sum(pSim.gridVoxIdx==0,1));
+    shiftPE = (1:nSpinPE)-nSpinPE/2-0.5;
+    % find all possible combination of FE and PE shifts
+    [idx1, idx2] = ndgrid(1:length(shiftFE), 1:length(shiftPE));
+    idx = [idx1(:), idx2(:)];
+    % remove the no-shift combination since it is always done before
+    idx(all(idx==[find(shiftFE==0) find(shiftPE==0)],2),:) = [];
+    % shuffle
+    if pSim.monteCarloN~=inf
+        idx = idx(randperm(size(idx,1),pSim.monteCarloN),:);
+    end
+    pSim.monteCarloShiftFE = shiftFE(idx(:,1));
+    pSim.monteCarloShiftPE = shiftPE(idx(:,2));
 end
-magMap(mask.surround) = pVessel.S.surround; % static surround of the vessel (single spin magnitudes)
-magMap = magMap./nSpin; % MR signal between 0 and 1 for the full ROI (not voxel). Dividing by the number of spins in the ROI for the signal of individual spins.
 
